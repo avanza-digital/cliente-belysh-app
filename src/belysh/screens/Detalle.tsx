@@ -6,14 +6,14 @@ import {
   T, serif, sans, RES, parsePos,
   Glass, EmeraldGradient, Photo, Eyebrow, Stars, Btn, Scroll, FixedBar, I,
 } from '../ui';
-import { BELYSH } from '../data';
+import { BELYSH, Service } from '../data';
 import { money } from '../lib/money';
 
-const B = BELYSH as any;
+const B = BELYSH;
 
 const RITUAL = ['Consulta y diagnóstico capilar', 'Productos premium sin amoníaco', 'Lavado ritual y peinado final'];
 
-export default function Detalle(props: any) {
+export default function Detalle(props: { s?: Service; onBook: () => void }) {
   const s = props.s || B.SERVICES[0];
   const onBook = props.onBook;
   const stylist = B.STYLISTS[0];

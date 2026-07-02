@@ -3,6 +3,7 @@
     "name": "Belysh",
     "slug": "belysh",
     "version": "1.0.0",
+    "runtimeVersion": { "policy": "appVersion" },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "belysh",
@@ -10,7 +11,10 @@
     "ios": {
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.belysh.app",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.belysh.app",

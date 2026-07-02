@@ -1,56 +1,51 @@
-# Welcome to your Expo app 👋
+# Belysh — App móvil
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+App de reservas y fidelidad para **Belysh**, spa de belleza premium (cabello de mujer · Lima, Perú).
+Stack: **Expo SDK 56** · React Native 0.85 · React 19 · expo-router · **Supabase** (auth + Postgres + RPC) · TypeScript strict.
 
-## Get started
-
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Arrancar
 
 ```bash
-npm run reset-project
+npm install
+cp .env.example .env   # ajusta EXPO_PUBLIC_SUPABASE_* si separas entornos
+npm start              # Expo (elige iOS / Android / web)
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Usuaria demo: `demo@belysh.app` / `belysh123`.
 
-### Other setup steps
+## Estructura
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```
+src/app/                 rutas expo-router (entrada → BelyshApp)
+src/belysh/
+  BelyshApp.tsx          navegación + flujo de reserva/reagendado
+  screens/               Welcome, Inicio, Servicios, Detalle, Booking, Summary,
+                         Success, Promos, Club, Perfil, Notifs
+  api/                   supabase, auth, appointments, club, notifications
+  lib/                   date, money, club, errors (+ __tests__)
+  ui.tsx, theme.ts       design system "Liquid Glow"
+  data.ts                catálogo (servicios, estilistas, promos, club) — tipado
+  types/db.ts            tipos generados de Supabase
+```
 
-## Learn more
+## Backend (Supabase)
 
-To learn more about developing your project with Expo, look at the following resources:
+- Economía de puntos **blindada en el servidor**: triggers `award_points_on_appointment` /
+  `clawback_points_on_cancel`, RPC `redeem_reward`, índice único de cupo. El cliente no puede falsificar puntos.
+- Fechas reales en `starts_at timestamptz` (zona Lima); RPC `taken_times`, `full_days`, `reschedule_appointment`.
+- Regenerar tipos tras cambios de esquema: `supabase gen types` (o el MCP).
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Calidad
 
-## Join the community
+```bash
+npm run lint     # ESLint (config Expo)
+npm test         # Jest (jest-expo) — lógica de lib/
+npx tsc --noEmit # typecheck (incluye tests)
+```
 
-Join our community of developers creating universal apps.
+CI (`.github/workflows/ci.yml`) corre tsc + jest + lint en cada push.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Pendientes que requieren cuentas/assets
+
+Ver [`../app-docs/PENDIENTES.md`](../app-docs/PENDIENTES.md): ícono de marca iOS, DSN de Sentry, credenciales Google OAuth,
+y activar *leaked password protection* en Supabase Auth.

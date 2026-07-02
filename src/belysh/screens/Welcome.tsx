@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, TextInput, StyleSheet, Alert, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
+import { View, Text, Pressable, TextInput, StyleSheet, Alert, KeyboardAvoidingView, ScrollView, Platform, BackHandler } from 'react-native';
 import { Image } from 'expo-image';
 import { BlurView } from 'expo-blur';
+import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { T, serif, sans, RES } from '../ui';
@@ -198,6 +199,20 @@ export default function Welcome() {
       return () => clearTimeout(t);
     }
   }, [phase]);
+
+  // Botón atrás de hardware (Android): retrocede entre fases en vez de cerrar la app.
+  useEffect(() => {
+    const onBack = () => {
+      if (phase === 'auth') { setPhase('guide'); return true; }
+      if (phase === 'guide') {
+        if (step > 0) { setStep(step - 1); return true; }
+        setPhase('splash'); return true;
+      }
+      return false; // splash: dejar que el SO cierre la app
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
+    return () => sub.remove();
+  }, [phase, step]);
 
   const isSignup = mode === 'signup';
 
@@ -431,6 +446,7 @@ export default function Welcome() {
 
   return (
     <View style={{ flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#0A2A20' }}>
+      <StatusBar style="light" />
       {content}
     </View>
   );

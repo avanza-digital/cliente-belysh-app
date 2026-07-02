@@ -1,37 +1,46 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import {
-  Scroll, Eyebrow, GradientText, EmeraldCard, EmeraldGradient, Glass, useCountUp,
+  Scroll, Eyebrow, GradientText, EmeraldCard, EmeraldGradient, Glass, CountUp, CountUpBar,
   T, serif, sans,
 } from '../ui';
 import { BELYSH } from '../data';
 import { useAuth } from '../api/auth';
-import { redeemReward } from '../api/club';
+import { redeemReward, getClientSpend12m } from '../api/club';
 import { tierInfo } from '../lib/club';
 import { traducir } from '../lib/errors';
 
-const B = BELYSH as any;
+const B = BELYSH;
 
-// Gradiente aprox. de los medallones radiales (Plata / Oro / Diamante)
+// Gradiente aprox. de los medallones radiales por nivel (Member / VIP / Elite / Black)
 const MEDAL: Record<string, [string, string]> = {
-  Plata: ['#F6F7F8', '#BBC1C7'],
-  Oro: ['#F6E6AE', '#C9A063'],
-  Diamante: ['#EAF6FB', '#BBDDEC'],
+  Member: ['#F6F7F8', '#BBC1C7'],
+  VIP: ['#F6E6AE', '#C9A063'],
+  Elite: ['#EAF6FB', '#BBDDEC'],
+  Black: ['#D7DBDF', '#3A3F45'],
 };
 
-export default function Club(_props: any) {
-  const { profile, refreshProfile } = useAuth();
+export default function Club() {
+  const { profile, user, refreshProfile } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
+  // NIVEL = consumo pagado 12 meses (soles), fuente de verdad del servidor. Fetch defensivo:
+  // ante cualquier error queda en 0 → Member 0%, que es el estado correcto sin pagos.
+  const [spend, setSpend] = useState(0);
+  const loadSpend = async () => {
+    if (!user?.id) return;
+    try { setSpend(await getClientSpend12m(user.id)); } catch { /* mantiene el último válido */ }
+  };
+  useEffect(() => { loadSpend(); }, [user?.id]);
   const refresh = async () => {
     setRefreshing(true);
-    try { await refreshProfile(); } finally { setRefreshing(false); }
+    try { await Promise.all([refreshProfile(), loadSpend()]); } finally { setRefreshing(false); }
   };
-  const points = profile?.club_points ?? 0;
-  const info = tierInfo(points);
-  const pts = useCountUp(points, 1200);
-  const pw = useCountUp(info.pct, 1400);
+  const points = profile?.club_points ?? 0;          // PUNTOS = moneda de canje
+  const info = tierInfo(spend);                       // NIVEL = consumo en soles
+  // Barra coherente con la etiqueta "S/{spend}/{tierMax}": progreso al umbral del siguiente nivel.
+  const pctAbs = info.isMax ? 100 : Math.max(0, Math.min(100, Math.round((spend / info.tierMax) * 100)));
   const [redeeming, setRedeeming] = useState<string | null>(null);
 
   const holder = (profile?.full_name || 'Socia Belysh').toUpperCase();
@@ -107,7 +116,7 @@ export default function Club(_props: any) {
                 Belysh
               </Text>
               <Text style={{ fontFamily: sans(700), fontSize: 8, letterSpacing: 3, color: 'rgba(255,255,255,0.58)', marginTop: 4 }}>
-                MEMBER CLUB
+                CLUB DE SOCIAS
               </Text>
             </View>
             <View style={{ borderWidth: 1, borderColor: 'rgba(231,207,155,0.45)', borderRadius: 999, paddingVertical: 5, paddingHorizontal: 13 }}>
@@ -145,10 +154,11 @@ export default function Club(_props: any) {
             <Text style={{ fontFamily: sans(700), fontSize: 8.5, letterSpacing: 2.4, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase' }}>
               Saldo de puntos
             </Text>
-            <Text style={{ fontFamily: sans(700), fontSize: 37, letterSpacing: 2, lineHeight: 37, marginTop: 5, color: '#fff', fontVariant: ['tabular-nums'] }}>
-              {pts}
-              <Text style={{ fontFamily: sans(600), fontSize: 11.5, color: 'rgba(255,255,255,0.55)', letterSpacing: 1.5 }}>{'  PTS'}</Text>
-            </Text>
+            <CountUp value={points} dur={1200}
+              style={{ marginTop: 5 }}
+              textStyle={{ fontFamily: sans(700), fontSize: 37, letterSpacing: 2, lineHeight: 37, color: '#fff', fontVariant: ['tabular-nums'] }}
+              suffix={<Text style={{ fontFamily: sans(600), fontSize: 11.5, color: 'rgba(255,255,255,0.55)', letterSpacing: 1.5 }}>{'  PTS'}</Text>}
+            />
           </View>
 
           {/* fila inferior: titular + número de socia */}
@@ -174,20 +184,15 @@ export default function Club(_props: any) {
               {info.isMax ? (
                 <Text style={{ fontFamily: sans(700), color: T.roseDeep }}>Nivel máximo · ¡gracias!</Text>
               ) : (
-                <>{info.toNext} pts para <Text style={{ fontFamily: sans(700), color: T.roseDeep }}>{info.nextTier}</Text></>
+                <>Te faltan S/ {info.toNext} para <Text style={{ fontFamily: sans(700), color: T.roseDeep }}>{info.nextTier}</Text></>
               )}
             </Text>
             <Text style={{ fontFamily: sans(700), fontSize: 11, color: T.muted }}>
-              {points}/{info.tierMax}
+              {info.isMax ? `S/ ${spend}` : `S/ ${spend} / ${info.tierMax}`}
             </Text>
           </View>
           <View style={{ height: 8, backgroundColor: T.soft, borderRadius: 999, overflow: 'hidden' }}>
-            <LinearGradient
-              colors={['#E7CF9B', '#C9A063']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={{ width: (pw + '%') as any, height: '100%', borderRadius: 999 }}
-            />
+            <CountUpBar pct={pctAbs} colors={['#E7CF9B', '#C9A063']} />
           </View>
           <Glass
             variant="chip"
@@ -240,7 +245,7 @@ export default function Club(_props: any) {
             >
               <View style={{ flexDirection: 'column', gap: 3, flex: 1, minWidth: 0, paddingRight: 14 }}>
                 <Text style={{ fontFamily: sans(600), fontSize: 14.5, color: T.ink, lineHeight: 18 }}>{w.title}</Text>
-                <Text style={{ fontFamily: sans(700), fontSize: 12, color: T.emerald }}>{w.cost} pts</Text>
+                <Text style={{ fontFamily: sans(700), fontSize: 12, color: T.goldText }}>{w.cost} pts</Text>
               </View>
               <Pressable
                 disabled={!ready || busy}
@@ -304,11 +309,11 @@ export default function Club(_props: any) {
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: serif(600), fontSize: 18, color: T.ink }}>
                   {t.name}
-                  {current && <Text style={{ fontFamily: sans(600), fontSize: 10, color: T.emerald }}> · ACTUAL</Text>}
+                  {current && <Text style={{ fontFamily: sans(600), fontSize: 10, color: T.goldText }}> · ACTUAL</Text>}
                 </Text>
                 <Text style={{ fontFamily: sans(600), fontSize: 12.5, color: T.body, marginTop: 2 }}>{t.perk}</Text>
               </View>
-              <Text style={{ fontFamily: sans(700), fontSize: 11, color: T.muted }}>{t.min}+</Text>
+              <Text style={{ fontFamily: sans(700), fontSize: 11, color: T.muted }}>{t.min === 0 ? 'Bienvenida' : `S/ ${t.min}+`}</Text>
             </View>
           );
         })}

@@ -6,8 +6,10 @@ export function traducir(msg?: string): string {
   if (m.includes('already registered') || m.includes('already been registered')) return 'Ese correo ya tiene una cuenta. Inicia sesión.';
   if (m.includes('insufficient')) return 'No te alcanzan los puntos para canjear esto.';
   if (m.includes('reward_not_found')) return 'Esa recompensa ya no está disponible.';
-  if (m.includes('forbidden_status') || m.includes('forbidden_field')) return 'No puedes modificar esta cita.';
-  if (m.includes('ocup') || m.includes('23505') || m.includes('duplicate')) return 'Ese horario acaba de ocuparse. Elige otro, por favor.';
+  if (m.includes('forbidden_status') || m.includes('forbidden_field') || m.includes('forbidden') || m.includes('appointment_not_found')) return 'No puedes modificar esta cita.';
+  if (m.includes('already_cancelled')) return 'Esta cita ya está cancelada.';
+  if (m.includes('too_late')) return 'Solo puedes reagendar hasta 24 h antes de la cita.';
+  if (m.includes('slot_taken') || m.includes('ocup') || m.includes('23505') || m.includes('duplicate')) return 'Ese horario acaba de ocuparse. Elige otro, por favor.';
   if (m.includes('row-level security') || m.includes('permission')) return 'No tienes permiso para esta acción.';
   if (m.includes('jwt') || m.includes('expired') || m.includes('not authenticated')) return 'Tu sesión expiró. Vuelve a iniciar sesión.';
   if (m.includes('password')) return 'La contraseña debe tener al menos 6 caracteres.';

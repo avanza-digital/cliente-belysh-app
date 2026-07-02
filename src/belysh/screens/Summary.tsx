@@ -1,10 +1,11 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { Scroll, FixedBar, Glass, Photo, Eyebrow, Btn, T, serif, sans } from '../ui';
-import { BELYSH, dow } from '../data';
+import { BELYSH, Service, BookingState } from '../data';
 import { money } from '../lib/money';
+import { fmtDate, limaISO } from '../lib/date';
 
-const B = BELYSH as any;
+const B = BELYSH;
 
 function Row({ k, v }: any) {
   return (
@@ -15,9 +16,9 @@ function Row({ k, v }: any) {
   );
 }
 
-export default function Summary({ s, st, onConfirm, submitting }: any) {
-  const stylist = B.STYLISTS.find((p: any) => p.id === st.stylist) || { name: '—' };
-  const day = { d: dow(st.day), n: st.day };
+export default function Summary({ s, st, onConfirm, submitting }: { s: Service; st: BookingState; onConfirm: () => void; submitting: boolean }) {
+  const stylist = B.STYLISTS.find((p) => p.id === st.stylist) || { name: '—' };
+  const fecha = st.date && st.time ? fmtDate(limaISO(st.date, st.time)) : '—';
 
   return (
     <View style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
@@ -32,7 +33,7 @@ export default function Summary({ s, st, onConfirm, submitting }: any) {
               <Text style={{ flex: 1, fontFamily: serif(600), fontSize: 18, color: T.ink, lineHeight: 20 }}>{s.name}</Text>
             </View>
             <Row k="Estilista" v={stylist.name} />
-            <Row k="Fecha" v={`${day.d} ${day.n} jun`} />
+            <Row k="Fecha" v={fecha} />
             <Row k="Hora" v={st.time} />
             <Row k="Duración" v={`${s.min} min`} />
           </Glass>
@@ -43,7 +44,7 @@ export default function Summary({ s, st, onConfirm, submitting }: any) {
               <Text style={{ fontFamily: serif(500), fontSize: 30, color: T.roseDeep, marginTop: 2 }}>{money(s.price)}</Text>
             </View>
             <Text style={{ fontFamily: sans(600), fontSize: 11.5, color: T.body, textAlign: 'right', maxWidth: 150 }}>
-              Pago en el salón · ganas <Text style={{ fontFamily: sans(700), color: T.emerald }}>+{s.price} pts</Text>
+              Pago en el salón · sumas <Text style={{ fontFamily: sans(700), color: T.goldText }}>puntos Belysh Club</Text> al pagar
             </Text>
           </View>
 

@@ -5,22 +5,21 @@ import {
   Scroll, Eyebrow, GradientText, ServiceCard, Glass, EmeraldGradient,
   T, serif, sans,
 } from '../ui';
-import { BELYSH } from '../data';
+import { BELYSH, Service } from '../data';
 
-const B = BELYSH as any;
+const B = BELYSH;
 
-export default function Servicios(props: any) {
-  const { openService } = props;
+export default function Servicios({ openService }: { openService: (s: Service) => void }) {
   const [cat, setCat] = useState('Todo');
   const [q, setQ] = useState('');
   const [sortP, setSortP] = useState(false);
 
   let list = B.SERVICES.filter(
-    (s: any) =>
+    (s) =>
       (cat === 'Todo' || s.cat === cat) &&
       s.name.toLowerCase().includes(q.trim().toLowerCase())
   );
-  if (sortP) list = [...list].sort((a: any, b: any) => a.price - b.price);
+  if (sortP) list = [...list].sort((a, b) => a.price - b.price);
 
   return (
     <Scroll pb={40}>
@@ -159,8 +158,8 @@ export default function Servicios(props: any) {
       {/* Lista */}
       <View style={{ paddingHorizontal: 20, paddingBottom: 4, gap: 12 }}>
         {list.length ? (
-          list.map((s: any) => (
-            <ServiceCard key={s.id} s={s} onPress={() => openService(s)} />
+          list.map((s) => (
+            <ServiceCard key={s.id} s={s} onSelect={openService} />
           ))
         ) : (
           <Text

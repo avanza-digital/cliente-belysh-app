@@ -1,20 +1,23 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, Pressable, StyleSheet, Linking, Platform, Alert } from "react-native";
 import * as Calendar from "expo-calendar";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
-import { T, serif, sans, Eyebrow, Btn, useCountUp } from "../ui";
-import { dow } from "../data";
+import { T, serif, sans, Eyebrow, Btn } from "../ui";
+import { fmtDate, fmtTime } from "../lib/date";
+import { Service, BookingState } from "../data";
+import { Appointment } from "../types/db";
 
 // TODO(pendientes): dirección/coords reales del salón.
 const SALON_QUERY = "Belysh, Lima, Perú";
 
-// Botón "soft" inline para honrar el padding exacto del prototipo ('14px 10px',
-// que el <Btn> del kit no expone). Mismo estilo visual que Btn kind="soft".
-function SoftBtn({ label, onPress }: any) {
+// Botón "soft" inline para honrar el padding exacto del prototipo ('14px 10px').
+function SoftBtn({ label, onPress, disabled }: any) {
   return (
     <Pressable
-      onPress={onPress}
+      onPress={disabled ? undefined : onPress}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!disabled }}
       style={({ pressed }) => ({
         flex: 1,
         borderRadius: 999,
@@ -23,8 +26,8 @@ function SoftBtn({ label, onPress }: any) {
         paddingHorizontal: 10,
         alignItems: "center",
         justifyContent: "center",
-        opacity: pressed ? 0.92 : 1,
-        transform: [{ scale: pressed ? 0.97 : 1 }],
+        opacity: disabled ? 0.5 : pressed ? 0.92 : 1,
+        transform: [{ scale: pressed && !disabled ? 0.97 : 1 }],
       })}
     >
       <Text style={{ fontFamily: sans(600), fontSize: 13, letterSpacing: 0.4, color: T.roseDeep }}>
@@ -34,15 +37,17 @@ function SoftBtn({ label, onPress }: any) {
   );
 }
 
-export default function Success({ s, st, onHome }: any) {
-  const day = { d: dow(st?.day), n: st?.day };
-  const gained = useCountUp(s?.price ?? 0, 1000);
+export default function Success({ s, st, appt, onHome }: { s: Service; st: BookingState; appt: Appointment | null; onHome: () => void }) {
+  const startsAt: string | undefined = appt?.starts_at ?? undefined;
+  const isReschedule = !!st?.rescheduleId;
+  const fecha = startsAt ? fmtDate(startsAt) : "";
+  const hora = startsAt ? fmtTime(startsAt) : st?.time ?? "";
+  const [calAdded, setCalAdded] = useState(false);
 
-  // Fecha/hora reales de la cita (Junio 2026 del prototipo).
+  // Instante absoluto real de la cita (starts_at ya trae el offset Lima).
   const apptRange = () => {
-    const [hh, mm] = String(st?.time || "9:00").split(":").map(Number);
-    const start = new Date(2026, 5, st?.day || 1, hh || 9, mm || 0, 0);
-    const end = new Date(start.getTime() + (s?.min || 60) * 60000);
+    const start = startsAt ? new Date(startsAt) : new Date();
+    const end = new Date(start.getTime() + (appt?.duration_min || s?.min || 60) * 60000);
     return { start, end };
   };
 
@@ -73,6 +78,7 @@ export default function Success({ s, st, onHome }: any) {
         timeZone: "America/Lima",
         alarms: [{ relativeOffset: -120 }],
       });
+      setCalAdded(true);
       Alert.alert("Agendado ✦", "Tu cita quedó en el calendario.");
     } catch {
       Alert.alert("Ups", "No se pudo agregar al calendario.");
@@ -91,8 +97,6 @@ export default function Success({ s, st, onHome }: any) {
 
   return (
     <View style={{ flex: 1 }}>
-      {/* Fondo claro propio: base marfil + lavado verde (arriba-izq) + lavado arena
-          (arriba-der), aproximación de los 3 radiales del prototipo. */}
       <LinearGradient
         colors={["#F6F3EB", "#F2F0E6"]}
         start={{ x: 0.2, y: 0 }}
@@ -147,7 +151,7 @@ export default function Success({ s, st, onHome }: any) {
           </Svg>
         </View>
 
-        <Eyebrow>¡Cita confirmada!</Eyebrow>
+        <Eyebrow>{isReschedule ? "¡Cita reagendada!" : "¡Cita confirmada!"}</Eyebrow>
 
         <Text
           style={{
@@ -161,7 +165,7 @@ export default function Success({ s, st, onHome }: any) {
         >
           Nos vemos el{" "}
           <Text style={{ fontFamily: serif(500, true), color: T.rose }}>
-            {day.d} {day.n}
+            {fecha}
           </Text>
         </Text>
 
@@ -175,39 +179,41 @@ export default function Success({ s, st, onHome }: any) {
             textAlign: "center",
           }}
         >
-          {s?.name} a las {st?.time}.{"\n"}Prepárate para brillar
+          {s?.name} a las {hora}.{"\n"}Prepárate para brillar
         </Text>
 
-        {/* Chip de puntos ganados */}
-        <View
-          style={{
-            marginTop: 20,
-            alignSelf: "center",
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 9,
-            backgroundColor: "#EFE7DF",
-            paddingVertical: 10,
-            paddingHorizontal: 18,
-            borderRadius: 999,
-          }}
-        >
+        {/* Chip de puntos ganados (solo en reserva nueva) */}
+        {!isReschedule && (
           <View
             style={{
-              width: 22,
-              height: 22,
-              borderRadius: 11,
-              backgroundColor: T.emerald,
+              marginTop: 20,
+              alignSelf: "center",
+              flexDirection: "row",
               alignItems: "center",
-              justifyContent: "center",
+              gap: 9,
+              backgroundColor: "#EFE7DF",
+              paddingVertical: 10,
+              paddingHorizontal: 18,
+              borderRadius: 999,
             }}
           >
-            <Text style={{ color: "#fff", fontSize: 12 }}>✦</Text>
+            <View
+              style={{
+                width: 22,
+                height: 22,
+                borderRadius: 11,
+                backgroundColor: T.emerald,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ color: "#fff", fontSize: 12 }}>✦</Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "baseline", flexShrink: 1 }}>
+              <Text style={{ color: T.goldText, fontFamily: sans(600), fontSize: 13 }}>Sumarás tus puntos al pagar tu cita</Text>
+            </View>
           </View>
-          <Text style={{ color: T.emerald, fontFamily: sans(600), fontSize: 13 }}>
-            Ganaste +{gained} puntos Belysh Club
-          </Text>
-        </View>
+        )}
 
         {/* Acciones secundarias */}
         <View
@@ -220,7 +226,7 @@ export default function Success({ s, st, onHome }: any) {
             alignSelf: "center",
           }}
         >
-          <SoftBtn label="Añadir al calendario" onPress={addToCalendar} />
+          <SoftBtn label={calAdded ? "Agregado ✓" : "Añadir al calendario"} onPress={addToCalendar} disabled={calAdded} />
           <SoftBtn label="Cómo llegar" onPress={howToGet} />
         </View>
 

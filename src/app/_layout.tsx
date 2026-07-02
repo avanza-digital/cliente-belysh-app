@@ -7,6 +7,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '../belysh/api/auth';
+import { ErrorBoundary } from '../belysh/ErrorBoundary';
 import {
   CormorantGaramond_500Medium,
   CormorantGaramond_600SemiBold,
@@ -47,10 +48,12 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AuthProvider>
-          <StatusBar style="dark" />
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#F6F3EB' } }} />
-        </AuthProvider>
+        <ErrorBoundary>
+          <AuthProvider>
+            <StatusBar style="dark" />
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#F6F3EB' } }} />
+          </AuthProvider>
+        </ErrorBoundary>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

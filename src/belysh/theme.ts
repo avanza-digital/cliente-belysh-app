@@ -14,7 +14,8 @@ export const T = {
   roseDeep: '#0A4632', // darkest emerald
   roseSoft: '#DBE5DD',
   blush: '#F0ECDF',
-  emerald: '#A9885A', // gold (yes — named "emerald" in the prototype)
+  emerald: '#A9885A', // gold decorativo/grande (yes — named "emerald" in the prototype)
+  goldText: '#7A5E2E', // oro para TEXTO chico: cumple WCAG AA (≥4.5:1) sobre marfil/blanco/soft
 } as const;
 
 // Tonos para placeholders de foto (gradiente a/b)

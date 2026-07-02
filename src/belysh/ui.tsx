@@ -1,7 +1,8 @@
 /* Belysh · "Liquid Glow" — sistema de diseño (RN). Todas las pantallas importan de aquí.
    Traduce las primitivas del prototipo web (glass, gradientes, foto, botón, iconos, chrome). */
 import React from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, RefreshControl, Platform } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, RefreshControl, Platform, TextInput } from 'react-native';
+import Animated, { useSharedValue, useAnimatedProps, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,6 +12,7 @@ import Svg, { Path, Circle } from 'react-native-svg';
 import { T, G, TONE, EMERALD_CARD, serif, sans } from './theme';
 import { RES } from './images';
 import { money } from './lib/money';
+import { monthMatrix, monthLabel, ymd } from './lib/date';
 
 type Any = any;
 
@@ -130,7 +132,7 @@ export function Btn({ children, onPress, kind = 'solid', full, disabled, style, 
   const isTextual = (c: Any) => c == null || typeof c === 'string' || typeof c === 'number';
   const allTextual = Array.isArray(children) ? children.every(isTextual) : isTextual(children);
   const label = allTextual
-    ? <Text style={[{ fontFamily: sans(600), fontSize: 14, letterSpacing: 0.4, color: kind === 'solid' ? '#fff' : T.roseDeep }, textStyle]}>{children}</Text>
+    ? <Text maxFontSizeMultiplier={1.4} style={[{ fontFamily: sans(600), fontSize: 14, letterSpacing: 0.4, color: kind === 'solid' ? '#fff' : T.roseDeep }, textStyle]}>{children}</Text>
     : children;
   const inner = (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, paddingHorizontal: 26 }}>
@@ -138,7 +140,7 @@ export function Btn({ children, onPress, kind = 'solid', full, disabled, style, 
     </View>
   );
   return (
-    <Pressable accessibilityRole="button" onPress={disabled ? undefined : onPress}
+    <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} onPress={disabled ? undefined : onPress}
       style={({ pressed }) => [{ width: full ? '100%' : undefined, borderRadius: 999, overflow: 'hidden',
         opacity: disabled ? 0.4 : pressed ? 0.92 : 1,
         transform: [{ scale: pressed ? 0.97 : 1 }] }, style]}>
@@ -152,23 +154,54 @@ export function Btn({ children, onPress, kind = 'solid', full, disabled, style, 
   );
 }
 
-/* ───────────────────────── useCountUp ───────────────────────── */
-export function useCountUp(target: number, dur = 1100, run = true) {
-  const [v, setV] = React.useState(run ? 0 : target);
+/* ───────────────────────── Conteo animado (Reanimated, hilo de UI) ─────────────────────────
+   Antes corría con requestAnimationFrame (re-render JS por frame). Ahora anima en el HILO DE UI:
+   CountUp usa TextInput + useAnimatedProps (el número se escribe sin re-render de React);
+   CountUpBar anima el ancho con useAnimatedStyle. */
+const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
+const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
+const COUNT_EASE = Easing.out(Easing.cubic);
+
+// `textStyle` = estilo del número · `suffix` = nodo a su lado (ej. "PTS") · `style` = fila contenedora.
+// Un TextInput no se encoge a su contenido (empujaría el sufijo), así que un <Text> medidor
+// invisible fija la caja al ancho del número FINAL y el input se superpone (absoluteFill).
+export const CountUp = React.memo(function CountUp({ value, dur = 1100, run = true, textStyle, suffix, style }: Any) {
+  const sv = useSharedValue(run ? 0 : value);
   React.useEffect(() => {
-    if (!run) { setV(target); return; }
-    let raf: number, t0: number | undefined;
-    const tick = (t: number) => {
-      if (t0 === undefined) t0 = t;
-      const p = Math.min(1, (t - t0) / dur);
-      setV(Math.round((1 - Math.pow(1 - p, 3)) * target));
-      if (p < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, run]);
-  return v;
-}
+    sv.value = run ? withTiming(value, { duration: dur, easing: COUNT_EASE }) : value;
+  }, [value, run, dur]); // eslint-disable-line react-hooks/exhaustive-deps
+  const animatedProps = useAnimatedProps(() => ({ text: String(Math.round(sv.value)) } as Any));
+  return (
+    <View style={[{ flexDirection: 'row', alignItems: 'baseline' }, style]}>
+      <View>
+        <Text style={[textStyle, { opacity: 0 }]} accessible={false} importantForAccessibility="no">{String(Math.round(value))}</Text>
+        <AnimatedTextInput
+          editable={false}
+          caretHidden
+          underlineColorAndroid="transparent"
+          accessible={false}
+          importantForAccessibility="no"
+          defaultValue={String(run ? 0 : value)}
+          animatedProps={animatedProps}
+          style={[StyleSheet.absoluteFill, { padding: 0, margin: 0, includeFontPadding: false, textAlign: 'left' }, textStyle]}
+        />
+      </View>
+      {suffix}
+    </View>
+  );
+});
+
+export const CountUpBar = React.memo(function CountUpBar({ pct, dur = 1400, colors, style }: Any) {
+  const w = useSharedValue(0);
+  React.useEffect(() => {
+    w.value = withTiming(pct, { duration: dur, easing: COUNT_EASE });
+  }, [pct, dur]); // eslint-disable-line react-hooks/exhaustive-deps
+  const animStyle = useAnimatedStyle(() => ({ width: `${w.value}%` }));
+  return (
+    <AnimatedLinearGradient colors={colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+      style={[{ height: '100%', borderRadius: 999 }, style, animStyle]} />
+  );
+});
 
 /* ───────────────────────── Iconos (set compartido `I`) ───────────────────────── */
 export const I = {
@@ -233,9 +266,10 @@ export function AppBackground({ children, style }: Any) {
 }
 
 /* ───────────────────────── ServiceCard ───────────────────────── */
-export const ServiceCard = React.memo(function ServiceCard({ s, onPress }: Any) {
+// onSelect estable + s estable (de BELYSH) → React.memo NO se anula (antes el onPress inline lo rompía).
+export const ServiceCard = React.memo(function ServiceCard({ s, onSelect }: Any) {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`${s.name}, ${s.min} minutos`} onPress={onPress} style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${s.name}, ${s.min} minutos, ${money(s.price)}`} onPress={() => onSelect(s)} style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}>
       <Glass radius={22} style={{ padding: 12, flexDirection: 'row', gap: 14, alignItems: 'center',
         boxShadow: '0 8px 22px rgba(20,45,35,0.07)' as Any }}>
         <Photo tone={s.tone} tag={s.tag} img={s.img} pos={s.pos} h={86} r={18} style={{ width: 86 }} />
@@ -314,14 +348,30 @@ export function TabBar({ tab, go, bottomInset = 0 }: Any) {
   );
 }
 
-/* ───────────────────────── MonthCal ───────────────────────── */
-const CALDEF = { days: 30, firstDow: 0, today: 7, full: [8, 14, 22] };
-export const MonthCal = React.memo(function MonthCal({ sel, onPick }: Any) {
+/* ───────────────────────── MonthCal ─────────────────────────
+   Calendario REAL: recibe año/mes/hoy + días llenos (de full_days) + estilista.
+   selected/onPick trabajan con fechas 'YYYY-MM-DD' en zona Lima. */
+export const MonthCal = React.memo(function MonthCal({ year, month, todayStr, selected, fullDays = [], onPick, onPrev, onNext, canPrev, canNext }: Any) {
+  const { firstDow, days } = monthMatrix(year, month);
   const cells: (number | null)[] = [];
-  for (let i = 0; i < CALDEF.firstDow; i++) cells.push(null);
-  for (let n = 1; n <= CALDEF.days; n++) cells.push(n);
+  for (let i = 0; i < firstDow; i++) cells.push(null);
+  for (let n = 1; n <= days; n++) cells.push(n);
   return (
     <Glass radius={22} style={{ padding: 14, boxShadow: '0 8px 20px rgba(20,45,35,0.06)' as Any }}>
+      {/* navegación de mes */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <Pressable disabled={!canPrev} onPress={onPrev} accessibilityRole="button" accessibilityLabel="Mes anterior"
+          accessibilityState={{ disabled: !canPrev }} hitSlop={8}
+          style={{ width: 30, height: 30, alignItems: 'center', justifyContent: 'center', opacity: canPrev ? 1 : 0.25 }}>
+          <Svg width={9} height={14} viewBox="0 0 9 14"><Path d="M8 1L2 7l6 6" stroke={T.ink} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" /></Svg>
+        </Pressable>
+        <Text style={{ fontFamily: serif(600), fontSize: 16, color: T.ink }}>{monthLabel(year, month)}</Text>
+        <Pressable disabled={!canNext} onPress={onNext} accessibilityRole="button" accessibilityLabel="Mes siguiente"
+          accessibilityState={{ disabled: !canNext }} hitSlop={8}
+          style={{ width: 30, height: 30, alignItems: 'center', justifyContent: 'center', opacity: canNext ? 1 : 0.25 }}>
+          <Svg width={9} height={14} viewBox="0 0 9 14"><Path d="M1 1l6 6-6 6" stroke={T.ink} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" /></Svg>
+        </Pressable>
+      </View>
       <View style={{ flexDirection: 'row', marginBottom: 8 }}>
         {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d, i) => (
           <Text key={i} style={{ flex: 1, textAlign: 'center', fontFamily: sans(600), fontSize: 10.5, color: T.muted }}>{d}</Text>
@@ -330,14 +380,15 @@ export const MonthCal = React.memo(function MonthCal({ sel, onPick }: Any) {
       <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
         {cells.map((n, i) => {
           if (!n) return <View key={i} style={{ width: `${100 / 7}%`, height: 42 }} />;
-          const past = n < CALDEF.today;
-          const full = CALDEF.full.includes(n);
+          const dateStr = ymd(year, month, n);
+          const past = dateStr < todayStr;
+          const full = (fullDays as string[]).includes(dateStr);
           const dis = past || full;
-          const on = sel === n;
-          const today = n === CALDEF.today;
+          const on = selected === dateStr;
+          const today = dateStr === todayStr;
           return (
             <View key={i} style={{ width: `${100 / 7}%`, height: 42, padding: 2 }}>
-              <Pressable disabled={dis} onPress={() => onPick(n)}
+              <Pressable disabled={dis} onPress={() => onPick(dateStr)}
                 accessibilityLabel={`Día ${n}`} accessibilityState={{ disabled: dis, selected: on }}
                 style={{ flex: 1, borderRadius: 13, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
                   borderWidth: today && !on ? 1.5 : 0, borderColor: T.rose,

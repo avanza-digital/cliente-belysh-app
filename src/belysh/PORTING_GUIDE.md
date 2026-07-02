@@ -76,7 +76,7 @@ import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { /* primitivas que uses */ } from '../ui';
 import { BELYSH } from '../data';
-const B = BELYSH as any;
+const B = BELYSH;
 
 export default function NombrePantalla(props: any) {
   // ...estado y helpers locales igual que el prototipo...

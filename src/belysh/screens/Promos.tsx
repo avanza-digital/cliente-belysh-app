@@ -6,9 +6,9 @@ import {
   Glass, Photo, Eyebrow, GradientText, EmeraldGradient, EmeraldCard, Scroll,
   T, serif, sans,
 } from '../ui';
-import { BELYSH } from '../data';
+import { BELYSH, Service } from '../data';
 import { money } from '../lib/money';
-const B = BELYSH as any;
+const B = BELYSH;
 
 // Botón pequeño "Reservar" — réplica del Btn solid del prototipo con padding 11/20 y fontSize 12.5
 function ReserveBtn({ onPress }: any) {
@@ -27,7 +27,7 @@ function ReserveBtn({ onPress }: any) {
   );
 }
 
-export default function Promos({ go, openService }: any) {
+export default function Promos({ go, openService }: { go: (t: string) => void; openService: (s: Service) => void }) {
   return (
     <Scroll pb={40}>
       {/* Encabezado */}
@@ -40,7 +40,7 @@ export default function Promos({ go, openService }: any) {
 
       {/* Lista */}
       <View style={{ paddingTop: 16, paddingHorizontal: 20, flexDirection: 'column', gap: 16 }}>
-        {B.PROMOS.map((p: any) => (
+        {B.PROMOS.map((p) => (
           <Glass key={p.id} radius={22} style={{ overflow: 'hidden', boxShadow: '0 10px 26px rgba(20,45,35,0.08)' as any }}>
             <View style={{ position: 'relative', padding: 10 }}>
               <Photo tone={p.tone} tag={String(p.kind).toLowerCase()} img={p.img} h={130} r={18} />
@@ -58,7 +58,11 @@ export default function Promos({ go, openService }: any) {
                   <Text style={{ fontFamily: serif(600), fontSize: 26, color: T.roseDeep }}>{money(p.now)}</Text>
                   <Text style={{ fontFamily: sans(700), fontSize: 14, color: T.muted, textDecorationLine: 'line-through' }}>{money(p.was)}</Text>
                 </View>
-                <ReserveBtn onPress={() => go && go('servicios')} />
+                <ReserveBtn onPress={() => {
+                  const svc = B.SERVICES.find((s) => s.id === p.serviceId);
+                  if (svc && openService) openService(svc);
+                  else if (go) go('servicios');
+                }} />
               </View>
             </View>
           </Glass>

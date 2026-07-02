@@ -17,11 +17,13 @@
     },
     "preview": {
       "distribution": "internal",
+      "channel": "preview",
       "ios": { "simulator": true },
       "env": { "EXPO_USE_PRECOMPILED_MODULES": "0" }
     },
     "production": {
       "autoIncrement": true,
+      "channel": "production",
       "env": { "EXPO_USE_PRECOMPILED_MODULES": "0" }
     }
   },

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -6,12 +6,21 @@ import {
   T, serif, sans,
   Scroll, Photo, Eyebrow, Petal, Glass, EmeraldCard,
 } from '../ui';
-import { BELYSH } from '../data';
+import { BELYSH, Service } from '../data';
 import { useAuth } from '../api/auth';
+import { getClientSpend12m } from '../api/club';
 import { tierInfo } from '../lib/club';
 import { money } from '../lib/money';
+import { partsLima } from '../lib/date';
 
-const B = BELYSH as any;
+const B = BELYSH;
+
+function saludoPorHora(): string {
+  const h = partsLima(new Date().toISOString()).hh;
+  if (h < 12) return 'Buenos días';
+  if (h < 19) return 'Buenas tardes';
+  return 'Buenas noches';
+}
 
 // Iconos de categoría (inline del prototipo → react-native-svg)
 const CAT_ICONS: Record<string, (c: string) => React.ReactNode> = {
@@ -40,12 +49,19 @@ const CAT_ICONS: Record<string, (c: string) => React.ReactNode> = {
   ),
 };
 
-export default function Inicio({ openService, go }: any) {
-  const { profile } = useAuth();
+export default function Inicio({ openService, go }: { openService: (s: Service) => void; go: (t: string) => void }) {
+  const { profile, user } = useAuth();
   const firstName = (profile?.full_name || 'Bienvenida').trim().split(/\s+/)[0];
-  const pts = profile?.club_points ?? 0;
-  const ti = tierInfo(pts);
-  const pop = B.SERVICES.filter((s: any) => s.popular);
+  const pts = profile?.club_points ?? 0;              // PUNTOS de canje
+  // NIVEL = consumo 12 meses (soles) del servidor. Fetch defensivo → 0 si falla (Member).
+  const [spend, setSpend] = useState(0);
+  useEffect(() => {
+    let ok = true;
+    if (user?.id) getClientSpend12m(user.id).then((s) => { if (ok) setSpend(s); }).catch(() => {});
+    return () => { ok = false; };
+  }, [user?.id]);
+  const ti = tierInfo(spend);                          // NIVEL en soles
+  const pop = B.SERVICES.filter((s) => s.popular);
   const cats = [
     { name: 'Corte', tint: 'rose' },
     { name: 'Color', tint: 'emerald' },
@@ -57,7 +73,7 @@ export default function Inicio({ openService, go }: any) {
     <Scroll>
       {/* saludo */}
       <View style={{ paddingTop: 16, paddingHorizontal: 22 }}>
-        <Eyebrow>Buenos días</Eyebrow>
+        <Eyebrow>{saludoPorHora()}</Eyebrow>
         <Text style={{ fontFamily: serif(500), fontSize: 30, color: T.ink, marginTop: 8, lineHeight: 34 }}>
           ¿Lista para consentirte,{' '}
           <Text style={{ fontFamily: serif(500, true), color: T.rose }}>{firstName}</Text>?
@@ -79,6 +95,7 @@ export default function Inicio({ openService, go }: any) {
           <LinearGradient colors={['#E7CF9B', '#C9A063']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
             style={{ width: 48, height: 2, borderRadius: 2, marginTop: 11 }} />
           <Pressable onPress={() => go('servicios')}
+            accessibilityRole="button" accessibilityLabel="Reservar ahora"
             style={{ marginTop: 12, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 999, paddingVertical: 11, paddingHorizontal: 22 }}>
             <Text style={{ color: T.roseDeep, fontFamily: sans(600), fontSize: 13 }}>Reservar ahora</Text>
           </Pressable>
@@ -91,7 +108,7 @@ export default function Inicio({ openService, go }: any) {
         {cats.map((c) => {
           const isE = c.tint === 'emerald';
           return (
-            <Pressable key={c.name} onPress={() => go('servicios')}>
+            <Pressable key={c.name} onPress={() => go('servicios')} accessibilityRole="button" accessibilityLabel={`Categoría ${c.name}`}>
               <Glass radius={18} style={{ width: 84, alignItems: 'center', gap: 9, paddingTop: 14, paddingHorizontal: 8, paddingBottom: 13, boxShadow: '0 6px 16px rgba(20,45,35,0.07)' as any }}>
                 <LinearGradient
                   colors={isE ? ['#F4E8D4', '#E7CF9B'] : ['#D9F0E7', '#BFE7DB']}
@@ -114,7 +131,7 @@ export default function Inicio({ openService, go }: any) {
       {/* favoritos header */}
       <View style={{ paddingTop: 20, paddingHorizontal: 20, paddingBottom: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Text style={{ fontFamily: serif(600), fontSize: 24, color: T.ink }}>Favoritos del salón</Text>
-        <Pressable onPress={() => go('servicios')}>
+        <Pressable onPress={() => go('servicios')} accessibilityRole="button" accessibilityLabel="Ver todos los servicios">
           <Eyebrow style={{ fontSize: 10 }}>Ver todo</Eyebrow>
         </Pressable>
       </View>
@@ -122,8 +139,8 @@ export default function Inicio({ openService, go }: any) {
       {/* favoritos scroll */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ gap: 14, paddingTop: 10, paddingHorizontal: 20, paddingBottom: 4 }}>
-        {pop.map((s: any) => (
-          <Pressable key={s.id} onPress={() => openService(s)}>
+        {pop.map((s) => (
+          <Pressable key={s.id} onPress={() => openService(s)} accessibilityRole="button" accessibilityLabel={`${s.name}, ${money(s.price)}`}>
             <Glass radius={22} style={{ width: 188, padding: 10, boxShadow: '0 8px 22px rgba(20,45,35,0.08)' as any }}>
               <Photo tone={s.tone} tag={s.tag} img={s.img} pos={s.pos} h={140} r={16} />
               <Text style={{ fontFamily: serif(600), fontSize: 18, color: T.ink, marginTop: 10, lineHeight: 20, paddingHorizontal: 4 }}>{s.name}</Text>
@@ -134,7 +151,7 @@ export default function Inicio({ openService, go }: any) {
       </ScrollView>
 
       {/* club teaser — mini tarjeta premium */}
-      <Pressable onPress={() => go('club')}>
+      <Pressable onPress={() => go('club')} accessibilityRole="button" accessibilityLabel={`Belysh Club, ${pts} puntos, nivel ${ti.tier}`}>
         <EmeraldCard radius={18} style={{ marginTop: 22, marginHorizontal: 20, marginBottom: 4, paddingVertical: 18, paddingHorizontal: 20, borderWidth: 1, borderColor: 'rgba(201,160,99,0.26)', boxShadow: '0 18px 36px -12px rgba(6,32,24,0.5)' as any }}>
           {/* glow oro (radial aprox.) */}
           <View pointerEvents="none" style={{ position: 'absolute', right: -40, top: -50, width: 170, height: 170, borderRadius: 85, backgroundColor: 'rgba(201,160,99,0.13)' }} />
@@ -164,7 +181,7 @@ export default function Inicio({ openService, go }: any) {
                     {pts}
                     <Text style={{ fontFamily: sans(600), fontSize: 11, color: 'rgba(255,255,255,0.55)', letterSpacing: 1 }}>{'  PTS'}</Text>
                   </Text>
-                  <Text style={{ fontFamily: sans(500), fontSize: 11.5, color: 'rgba(255,255,255,0.72)', marginTop: 5 }}>Canjea un brushing de regalo</Text>
+                  <Text style={{ fontFamily: sans(500), fontSize: 11.5, color: 'rgba(255,255,255,0.72)', marginTop: 5 }}>Canjéalos por recompensas exclusivas</Text>
                 </View>
               </View>
             </View>

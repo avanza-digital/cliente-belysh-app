@@ -1,26 +1,29 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, ActivityIndicator, Pressable } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 import { Eyebrow, GradientText, Scroll, T, serif, sans, I } from "../ui";
 import { listNotifications, Notif } from "../api/notifications";
 
-export default function Notifs(_props: any) {
+export default function Notifs() {
   const [notifs, setNotifs] = useState<Notif[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
   const load = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
     setError(false);
     try {
       const n = await listNotifications();
-      setNotifs(n);
+      if (alive.current) setNotifs(n);
     } catch {
-      setError(true);
+      if (alive.current) setError(true);
     } finally {
-      if (!isRefresh) setLoading(false);
+      if (!isRefresh && alive.current) setLoading(false);
     }
   }, []);
 

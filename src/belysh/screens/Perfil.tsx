@@ -8,17 +8,16 @@ import {
 import { useAuth } from '../api/auth';
 import { listMyAppointments, cancelAppointment } from '../api/appointments';
 import { traducir } from '../lib/errors';
+import { fmtDate, fmtTime } from '../lib/date';
+import { Appointment } from '../types/db';
 
-const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-const DOW = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-function fmtDate(isoDate?: string): string {
-  if (!isoDate) return '';
-  const [y, m, d] = isoDate.split('-').map(Number);
-  const wd = DOW[new Date(y, m - 1, d).getDay()];
-  return `${wd} ${d} ${MESES[m - 1]}`;
-}
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
-const initials = (name?: string) =>
+const yearOf = (iso?: string) => {
+  if (!iso) return '';
+  const y = new Date(iso).getFullYear();
+  return Number.isFinite(y) ? String(y) : '';
+};
+const initials = (name?: string | null) =>
   (name || 'Tú').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('') || 'Tú';
 
 // Botón "pill" del prototipo (ghost / soft / grad).
@@ -52,10 +51,9 @@ function PillBtn({ kind, label, onPress, full }: any) {
   );
 }
 
-export default function Perfil(props: any) {
-  const { onReschedule } = props;
+export default function Perfil({ onReschedule }: { onReschedule: (a: Appointment) => void }) {
   const { profile, signOut } = useAuth();
-  const [appts, setAppts] = useState<any[]>([]);
+  const [appts, setAppts] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -103,7 +101,8 @@ export default function Perfil(props: any) {
   };
 
   const name = profile?.full_name || 'Bienvenida';
-  const visits = appts.filter((a) => a.status !== 'cancelada').length;
+  // "Visitas" = solo citas realmente completadas (no futuras ni canceladas).
+  const visits = appts.filter((a) => a.status === 'completada').length;
 
   const account = ['Notificaciones y recordatorios', 'Métodos de pago', 'Mis reseñas', 'Ayuda', 'Cerrar sesión'];
   const onAccount = (item: string) => {
@@ -134,7 +133,7 @@ export default function Perfil(props: any) {
         <View style={{ flex: 1 }}>
           <Text style={{ fontFamily: serif(600), fontSize: 25, color: T.ink }}>{name}</Text>
           <Text style={{ fontFamily: sans(600), fontSize: 12.5, color: T.muted, marginTop: 3 }}>
-            {profile?.member_since ? `Miembro desde ${profile.member_since}` : 'Miembro Belysh'} · {visits} {visits === 1 ? 'visita' : 'visitas'}
+            {profile?.member_since ? `Miembro desde ${yearOf(profile.member_since)}` : 'Miembro Belysh'} · {visits} {visits === 1 ? 'visita' : 'visitas'}
           </Text>
         </View>
       </View>
@@ -165,7 +164,7 @@ export default function Perfil(props: any) {
             </Text>
           </Glass>
         ) : (
-          appts.map((a: any) => {
+          appts.map((a) => {
             const status = cap(a.status);
             const cancelled = a.status === 'cancelada';
             const bd = badge(status);
@@ -184,15 +183,15 @@ export default function Perfil(props: any) {
                   </View>
                 </View>
                 <Text style={{ fontFamily: sans(600), fontSize: 13, color: T.body, marginTop: 10 }}>
-                  {fmtDate(a.appt_date)} · {a.appt_time}{a.stylist_name ? ` · con ${a.stylist_name}` : ''}
+                  {fmtDate(a.starts_at)} · {fmtTime(a.starts_at)}{a.stylist_name ? ` · con ${a.stylist_name}` : ''}
                 </Text>
                 {!cancelled ? (
                   <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-                    <PillBtn kind="ghost" label="Reagendar" onPress={() => onReschedule && onReschedule(a.service_name)} />
+                    <PillBtn kind="ghost" label="Reagendar" onPress={() => onReschedule && onReschedule(a)} />
                     <PillBtn kind="soft" label="Cancelar" onPress={() => cancel(a.id)} />
                   </View>
                 ) : (
-                  <PillBtn kind="grad" full label="Reservar de nuevo" onPress={() => onReschedule && onReschedule(a.service_name)} />
+                  <PillBtn kind="grad" full label="Reservar de nuevo" onPress={() => onReschedule && onReschedule(a)} />
                 )}
               </Glass>
             );

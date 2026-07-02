@@ -2,23 +2,24 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { AppState } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { Profile } from '../types/db';
 
 WebBrowser.maybeCompleteAuthSession();
 
 type AuthValue = {
-  session: any;
-  user: any;
-  profile: any;
+  session: Session | null;
+  user: User | null;
+  profile: Profile | null;
   loading: boolean;
   refreshProfile: () => Promise<void>;
-  signIn: (email: string, password: string) => Promise<any>;
-  signUp: (email: string, password: string, fullName?: string) => Promise<any>;
-  signInGuest: () => Promise<any>;
+  signIn: (email: string, password: string) => ReturnType<typeof supabase.auth.signInWithPassword>;
+  signUp: (email: string, password: string, fullName?: string) => ReturnType<typeof supabase.auth.signUp>;
+  signInGuest: () => ReturnType<typeof supabase.auth.signInAnonymously>;
   signInWithGoogle: () => Promise<{ cancelled: boolean }>;
-  resetPassword: (email: string) => Promise<any>;
-  signOut: () => Promise<any>;
+  resetPassword: (email: string) => ReturnType<typeof supabase.auth.resetPasswordForEmail>;
+  signOut: () => ReturnType<typeof supabase.auth.signOut>;
 };
 
 const AuthCtx = createContext<AuthValue | null>(null);
@@ -29,26 +30,32 @@ export const useAuth = () => {
 };
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadProfile = useCallback(async (uid?: string | null) => {
     if (!uid) { setProfile(null); return; }
-    const { data } = await supabase.from('profiles').select('*').eq('id', uid).single();
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
+    // Error transitorio de red: NO pisar un perfil válido previo (evita que el Home
+    // muestre "Bienvenida"/0 puntos por un blip). data null sin error = realmente sin fila.
+    if (error) return;
     setProfile(data ?? null);
   }, []);
 
   useEffect(() => {
+    let mounted = true;
     supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
       setSession(data.session);
-      loadProfile(data.session?.user?.id).finally(() => setLoading(false));
+      loadProfile(data.session?.user?.id).finally(() => { if (mounted) setLoading(false); });
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+      if (!mounted) return;
       setSession(s);
       loadProfile(s?.user?.id);
     });
-    return () => sub.subscription.unsubscribe();
+    return () => { mounted = false; sub.subscription.unsubscribe(); };
   }, [loadProfile]);
 
   // refresca el token cuando la app vuelve al frente
