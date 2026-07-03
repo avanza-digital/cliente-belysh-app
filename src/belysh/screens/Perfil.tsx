@@ -29,6 +29,11 @@ function PillBtn({ kind, label, onPress, full }: any) {
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      // Amplía el área táctil de estos pills angostos: generoso en vertical,
+      // acotado en horizontal (los pares Reagendar/Cancelar van con gap 10 → 4+4<10, sin solape).
+      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
       style={({ pressed }) => [
         {
           flex: full ? undefined : 1,
@@ -148,6 +153,9 @@ export default function Perfil({ onReschedule }: { onReschedule: (a: Appointment
             <Text style={{ fontFamily: serif(600), fontSize: 18, color: T.ink, textAlign: 'center' }}>No pudimos cargar tus citas.</Text>
             <Pressable
               onPress={() => load()}
+              accessibilityRole="button"
+              accessibilityLabel="Reintentar"
+              hitSlop={8}
               style={({ pressed }) => ({
                 marginTop: 14, backgroundColor: T.soft, borderRadius: 999,
                 paddingVertical: 11, paddingHorizontal: 28, opacity: pressed ? 0.9 : 1,
@@ -209,6 +217,8 @@ export default function Perfil({ onReschedule }: { onReschedule: (a: Appointment
           <Pressable
             key={x}
             onPress={() => onAccount(x)}
+            accessibilityRole="button"
+            accessibilityLabel={x}
             style={{
               flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
               paddingVertical: 16, paddingHorizontal: 18,
