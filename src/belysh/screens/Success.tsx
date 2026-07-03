@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { View, Text, Pressable, StyleSheet, Linking, Platform, Alert } from "react-native";
-import * as Calendar from "expo-calendar";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
 import { T, serif, sans, Eyebrow, Btn } from "../ui";
 import { fmtDate, fmtTime } from "../lib/date";
+import { addAppointmentToCalendar } from "../lib/calendar";
 import { Service, BookingState } from "../data";
 import { Appointment } from "../types/db";
 
@@ -52,36 +52,25 @@ export default function Success({ s, st, appt, onHome }: { s: Service; st: Booki
   };
 
   const addToCalendar = async () => {
-    try {
-      const { status } = await Calendar.requestCalendarPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permiso necesario", "Activa el acceso al calendario para guardar tu cita.");
-        return;
-      }
-      const cals = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
-      let cal: any = null;
-      if (Platform.OS === "ios") {
-        try { cal = await Calendar.getDefaultCalendarAsync(); } catch {}
-      }
-      if (!cal) cal = cals.find((c: any) => c.allowsModifications) || cals[0];
-      if (!cal) {
-        Alert.alert("Sin calendario", "No encontramos un calendario para guardar la cita.");
-        return;
-      }
-      const { start, end } = apptRange();
-      await Calendar.createEventAsync(cal.id, {
-        title: `Belysh · ${s?.name}`,
-        startDate: start,
-        endDate: end,
-        location: SALON_QUERY,
-        notes: "Tu cita en Belysh. ¡Prepárate para brillar! ✦",
-        timeZone: "America/Lima",
-        alarms: [{ relativeOffset: -120 }],
-      });
+    const { start, end } = apptRange();
+    const result = await addAppointmentToCalendar({
+      title: `Belysh · ${s?.name}`,
+      startDate: start,
+      endDate: end,
+      location: SALON_QUERY,
+      notes: "Tu cita en Belysh. ¡Prepárate para brillar! ✦",
+      timeZone: "America/Lima",
+    });
+    if (result === "added") {
       setCalAdded(true);
       Alert.alert("Agendado ✦", "Tu cita quedó en el calendario.");
-    } catch {
-      Alert.alert("Ups", "No se pudo agregar al calendario.");
+    } else if (result === "permission-denied") {
+      Alert.alert(
+        "Permiso necesario",
+        "Activa el acceso al calendario para Belysh en Ajustes → Privacidad y seguridad → Calendarios.",
+      );
+    } else {
+      Alert.alert("Ups", "No pudimos agregar la cita al calendario. Inténtalo de nuevo.");
     }
   };
 
