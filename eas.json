@@ -12,8 +12,7 @@
     },
     "ios-simulator": {
       "distribution": "internal",
-      "ios": { "simulator": true },
-      "env": { "EXPO_USE_PRECOMPILED_MODULES": "0" }
+      "ios": { "simulator": true }
     },
     "preview": {
       "distribution": "internal",

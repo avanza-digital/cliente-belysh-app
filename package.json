@@ -55,19 +55,5 @@
     "test": "jest",
     "format": "prettier --write \"src/**/*.{ts,tsx}\""
   },
-  "private": true,
-  "expo": {
-    "autolinking": {
-      "ios": {
-        "buildFromSource": [
-          ".*"
-        ]
-      },
-      "android": {
-        "buildFromSource": [
-          ".*"
-        ]
-      }
-    }
-  }
+  "private": true
 }
