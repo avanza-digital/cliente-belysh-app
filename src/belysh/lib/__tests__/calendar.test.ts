@@ -1,38 +1,56 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import * as Calendar from 'expo-calendar/legacy';
+import * as Calendar from 'expo-calendar';
 import { pickWritableCalendar, addAppointmentToCalendar } from '../calendar';
 
 // El bug real (smoke 2026-07-03), DOS capas:
 // (1) desde expo-calendar 56.0.7 los métodos clásicos de la RAÍZ lanzan en
-//     runtime (stubs @deprecated) — la lib debe importar de expo-calendar/legacy;
+//     runtime; el subpath /legacy quedó deprecado → migramos a la API OO de la
+//     raíz "expo-calendar" (getCalendars/getDefaultCalendarSync/createCalendar/
+//     getSourcesSync + el método de INSTANCIA ExpoCalendar.createEvent);
 // (2) en equipos sin calendario default, el viejo fallback cals[0] podía elegir
-//     un calendario de solo lectura (cumpleaños) y createEventAsync lanzaba.
+//     un calendario de solo lectura (cumpleaños) y createEvent lanzaba.
 // La lib debe: preferir default escribible → primer escribible → CREAR "Belysh".
 // (babel-jest hoistea este mock por encima de los imports.)
-jest.mock('expo-calendar/legacy', () => ({
-  requestCalendarPermissionsAsync: jest.fn(),
-  getCalendarsAsync: jest.fn(),
-  getDefaultCalendarAsync: jest.fn(),
-  createCalendarAsync: jest.fn(),
-  createEventAsync: jest.fn(),
-  getSourcesAsync: jest.fn(),
+jest.mock('expo-calendar', () => ({
+  requestCalendarPermissions: jest.fn(),
+  getCalendars: jest.fn(),
+  getDefaultCalendarSync: jest.fn(), // SÍNCRONA
+  createCalendar: jest.fn(),
+  getSourcesSync: jest.fn(), // SÍNCRONA
   EntityTypes: { EVENT: 'event', REMINDER: 'reminder' },
   SourceType: { LOCAL: 'local', CALDAV: 'caldav', BIRTHDAYS: 'birthdays' },
   CalendarAccessLevel: { OWNER: 'owner' },
 }));
 
 type MockFn<T extends (...args: never[]) => unknown> = ReturnType<typeof jest.fn<T>>;
+// Instancia ExpoCalendar de mentira: el evento se crea sobre la INSTANCIA elegida.
+type FakeCalendar = {
+  id: string;
+  title: string;
+  allowsModifications: boolean;
+  createEvent: MockFn<(event?: unknown) => Promise<{ id: string }>>;
+};
 const mockCalendar = Calendar as unknown as {
-  requestCalendarPermissionsAsync: MockFn<() => Promise<{ status: string }>>;
-  getCalendarsAsync: MockFn<(entityType?: string) => Promise<unknown[]>>;
-  getDefaultCalendarAsync: MockFn<() => Promise<unknown>>;
-  createCalendarAsync: MockFn<(details?: unknown) => Promise<string>>;
-  createEventAsync: MockFn<(calendarId: string, event?: unknown) => Promise<string>>;
-  getSourcesAsync: MockFn<() => Promise<unknown[]>>;
+  requestCalendarPermissions: MockFn<() => Promise<{ status: string }>>;
+  getCalendars: MockFn<(entityType?: string) => Promise<unknown[]>>;
+  getDefaultCalendarSync: MockFn<() => unknown>; // SÍNCRONA
+  createCalendar: MockFn<(details?: unknown) => Promise<unknown>>;
+  getSourcesSync: MockFn<() => unknown[]>; // SÍNCRONA
 };
 
-const writable = (id: string) => ({ id, title: id, allowsModifications: true });
-const readOnly = (id: string) => ({ id, title: id, allowsModifications: false });
+// Cada calendario mock lleva su PROPIO createEvent (método de instancia).
+const writable = (id: string): FakeCalendar => ({
+  id,
+  title: id,
+  allowsModifications: true,
+  createEvent: jest.fn<(event?: unknown) => Promise<{ id: string }>>().mockResolvedValue({ id: 'evento-1' }),
+});
+const readOnly = (id: string): FakeCalendar => ({
+  id,
+  title: id,
+  allowsModifications: false,
+  createEvent: jest.fn<(event?: unknown) => Promise<{ id: string }>>().mockResolvedValue({ id: 'evento-1' }),
+});
 
 const EVENT = {
   title: 'Belysh · Corte & Estilo Signature',
@@ -69,33 +87,42 @@ describe('pickWritableCalendar (selección segura de calendario)', () => {
 });
 
 describe('addAppointmentToCalendar (flujo completo con expo-calendar mockeado)', () => {
+  let belyshInstance: FakeCalendar;
+
   beforeEach(() => {
     jest.clearAllMocks();
-    mockCalendar.requestCalendarPermissionsAsync.mockResolvedValue({ status: 'granted' });
-    mockCalendar.getCalendarsAsync.mockResolvedValue([]);
-    mockCalendar.getDefaultCalendarAsync.mockRejectedValue(new Error('no default'));
-    mockCalendar.getSourcesAsync.mockResolvedValue([]);
-    mockCalendar.createCalendarAsync.mockResolvedValue('nuevo-belysh');
-    mockCalendar.createEventAsync.mockResolvedValue('evento-1');
+    // Instancia devuelta por createCalendar (creada tras clearAllMocks → limpia).
+    belyshInstance = writable('nuevo-belysh');
+    mockCalendar.requestCalendarPermissions.mockResolvedValue({ status: 'granted' });
+    mockCalendar.getCalendars.mockResolvedValue([]);
+    // getDefaultCalendarSync es SÍNCRONA: lanza cuando no hay default (o Android).
+    mockCalendar.getDefaultCalendarSync.mockImplementation(() => {
+      throw new Error('no default');
+    });
+    // getSourcesSync es SÍNCRONA.
+    mockCalendar.getSourcesSync.mockReturnValue([]);
+    mockCalendar.createCalendar.mockResolvedValue(belyshInstance);
   });
 
-  it('permiso denegado → "permission-denied" y NO intenta crear el evento', async () => {
-    mockCalendar.requestCalendarPermissionsAsync.mockResolvedValue({ status: 'denied' });
+  it('permiso denegado → "permission-denied" y NO intenta elegir/crear calendario ni evento', async () => {
+    mockCalendar.requestCalendarPermissions.mockResolvedValue({ status: 'denied' });
     const result = await addAppointmentToCalendar(EVENT);
     expect(result).toBe('permission-denied');
-    expect(mockCalendar.createEventAsync).not.toHaveBeenCalled();
+    expect(mockCalendar.getCalendars).not.toHaveBeenCalled();
+    expect(belyshInstance.createEvent).not.toHaveBeenCalled();
   });
 
-  it('camino feliz: default escribible → evento en ese calendario con recordatorio -120 min', async () => {
-    mockCalendar.getDefaultCalendarAsync.mockResolvedValue(writable('default-icloud'));
-    mockCalendar.getCalendarsAsync.mockResolvedValue([writable('default-icloud')]);
+  it('camino feliz: default escribible → evento en ESA instancia con recordatorio -120 min', async () => {
+    const def = writable('default-icloud');
+    mockCalendar.getDefaultCalendarSync.mockReturnValue(def);
+    mockCalendar.getCalendars.mockResolvedValue([def]);
 
     const result = await addAppointmentToCalendar(EVENT);
 
     expect(result).toBe('added');
-    expect(mockCalendar.getCalendarsAsync).toHaveBeenCalledWith('event');
-    expect(mockCalendar.createEventAsync).toHaveBeenCalledWith(
-      'default-icloud',
+    expect(mockCalendar.getCalendars).toHaveBeenCalledWith('event');
+    // El evento se crea sobre la INSTANCIA elegida, SIN el primer arg calendarId.
+    expect(def.createEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         title: EVENT.title,
         startDate: EVENT.startDate,
@@ -104,12 +131,12 @@ describe('addAppointmentToCalendar (flujo completo con expo-calendar mockeado)',
         alarms: [{ relativeOffset: -120 }],
       }),
     );
-    expect(mockCalendar.createCalendarAsync).not.toHaveBeenCalled();
+    expect(mockCalendar.createCalendar).not.toHaveBeenCalled();
   });
 
-  it('caso del bug (sim prístino): default falla y solo hay read-only → CREA calendario "Belysh" en la fuente local y agrega ahí', async () => {
-    mockCalendar.getCalendarsAsync.mockResolvedValue([readOnly('cumples')]);
-    mockCalendar.getSourcesAsync.mockResolvedValue([
+  it('caso del bug (sim prístino): default lanza y solo hay read-only → CREA calendario "Belysh" en la fuente local y agrega ahí', async () => {
+    mockCalendar.getCalendars.mockResolvedValue([readOnly('cumples')]);
+    mockCalendar.getSourcesSync.mockReturnValue([
       { id: 'src-caldav', type: 'caldav', name: 'iCloud' },
       { id: 'src-local', type: 'local', name: 'Default' },
     ]);
@@ -117,34 +144,37 @@ describe('addAppointmentToCalendar (flujo completo con expo-calendar mockeado)',
     const result = await addAppointmentToCalendar(EVENT);
 
     expect(result).toBe('added');
-    expect(mockCalendar.createCalendarAsync).toHaveBeenCalledWith(
+    expect(mockCalendar.createCalendar).toHaveBeenCalledWith(
       expect.objectContaining({ title: 'Belysh', sourceId: 'src-local' }),
     );
-    expect(mockCalendar.createEventAsync).toHaveBeenCalledWith('nuevo-belysh', expect.anything());
+    // La instancia devuelta por createCalendar es la que crea el evento.
+    expect(belyshInstance.createEvent).toHaveBeenCalledWith(expect.anything());
   });
 
   it('sin fuente local usa la primera fuente disponible para crear el calendario', async () => {
-    mockCalendar.getSourcesAsync.mockResolvedValue([
+    mockCalendar.getSourcesSync.mockReturnValue([
       { id: 'src-caldav', type: 'caldav', name: 'iCloud' },
     ]);
 
     const result = await addAppointmentToCalendar(EVENT);
 
     expect(result).toBe('added');
-    expect(mockCalendar.createCalendarAsync).toHaveBeenCalledWith(
+    expect(mockCalendar.createCalendar).toHaveBeenCalledWith(
       expect.objectContaining({ sourceId: 'src-caldav' }),
     );
   });
 
   it('si crear el evento lanza → "failed" (sin excepción hacia el caller)', async () => {
-    mockCalendar.getDefaultCalendarAsync.mockResolvedValue(writable('default'));
-    mockCalendar.createEventAsync.mockRejectedValue(new Error('EKError'));
+    const def = writable('default');
+    def.createEvent.mockRejectedValue(new Error('EKError'));
+    mockCalendar.getDefaultCalendarSync.mockReturnValue(def);
+    mockCalendar.getCalendars.mockResolvedValue([def]);
     const result = await addAppointmentToCalendar(EVENT);
     expect(result).toBe('failed');
   });
 
   it('si tampoco se puede crear calendario (creación lanza) → "failed"', async () => {
-    mockCalendar.createCalendarAsync.mockRejectedValue(new Error('no source'));
+    mockCalendar.createCalendar.mockRejectedValue(new Error('no source'));
     const result = await addAppointmentToCalendar(EVENT);
     expect(result).toBe('failed');
   });
