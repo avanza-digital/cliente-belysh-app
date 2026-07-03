@@ -1,7 +1,7 @@
 # Belysh — App móvil
 
 App de reservas y fidelidad para **Belysh**, spa de belleza premium (cabello de mujer · Lima, Perú).
-Stack: **Expo SDK 56** · React Native 0.85 · React 19 · expo-router · **Supabase** (auth + Postgres + RPC) · TypeScript strict.
+Stack: **Expo SDK 57** · React Native 0.86 · React 19 · expo-router · **Supabase** (auth + Postgres + RPC) · TypeScript strict.
 
 ## Arrancar
 
