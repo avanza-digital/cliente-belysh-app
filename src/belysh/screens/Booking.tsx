@@ -236,7 +236,7 @@ export default function Booking({ s, st, setSt, onNext }: { s: Service; st: Book
               <Text style={{ fontFamily: sans(600), fontSize: 12, color: T.muted }}>  · {s.min} min</Text>
             </Text>
           </View>
-          <Btn onPress={ready ? onNext : undefined} disabled={!ready} style={{ flex: 1, opacity: ready ? 1 : 0.4 }}>Continuar</Btn>
+          <Btn arrow onPress={ready ? onNext : undefined} disabled={!ready} style={{ flex: 1, opacity: ready ? 1 : 0.4 }}>Continuar</Btn>
         </View>
       </FixedBar>
     </View>

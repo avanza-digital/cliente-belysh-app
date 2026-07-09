@@ -5,6 +5,7 @@ import { BlurView } from 'expo-blur';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import * as Haptics from 'expo-haptics';
 import { T, G, serif, sans, RES } from '../ui';
 import { GUIDES } from '../data';
 import { useAuth } from '../api/auth';
@@ -290,12 +291,15 @@ export default function Welcome() {
               Tu momento de{'\n'}<Text style={{ fontFamily: serif(500, true) }}>consentirte</Text> empieza aquí
             </Text>
 
-            <Pressable onPress={() => { setMode('signup'); setPhase('auth'); }} disabled={busy}
+            <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); setMode('signup'); setPhase('auth'); }} disabled={busy}
               accessibilityRole="button" accessibilityState={{ disabled: busy }}
               style={({ pressed }) => ({ marginTop: 28, borderRadius: 999, overflow: 'hidden', opacity: pressed ? 0.92 : 1, transform: [{ scale: pressed ? 0.98 : 1 }], boxShadow: '0 18px 36px rgba(0,0,0,0.35)' as any })}>
               <LinearGradient colors={G.goldColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                style={{ paddingVertical: 17, alignItems: 'center' }}>
+                style={{ paddingVertical: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5)' as any }}>
                 <Text style={{ fontFamily: sans(700), fontSize: 15, letterSpacing: 0.4, color: '#0A3B2C' }}>Crear cuenta</Text>
+                <Svg width={15} height={13} viewBox="0 0 15 13" fill="none">
+                  <Path d="M1 6.5h12M8.5 2l4.5 4.5L8.5 11" stroke="#0A3B2C" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
               </LinearGradient>
             </Pressable>
 
@@ -473,10 +477,15 @@ export default function Welcome() {
                   opacity: busy ? 0.6 : pressed ? 0.92 : 1, boxShadow: '0 16px 30px rgba(0,0,0,0.28)' as any,
                 })}>
                 <LinearGradient colors={G.goldColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                  style={{ paddingVertical: 17, alignItems: 'center' }}>
+                  style={{ paddingVertical: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5)' as any }}>
                   <Text style={{ fontFamily: sans(700), fontSize: 15, letterSpacing: 0.3, color: '#0A3B2C' }}>
                     {busy ? 'Un momento…' : isSignup ? 'Crear cuenta' : 'Entrar'}
                   </Text>
+                  {!busy && (
+                    <Svg width={15} height={13} viewBox="0 0 15 13" fill="none">
+                      <Path d="M1 6.5h12M8.5 2l4.5 4.5L8.5 11" stroke="#0A3B2C" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" />
+                    </Svg>
+                  )}
                 </LinearGradient>
               </Pressable>
 

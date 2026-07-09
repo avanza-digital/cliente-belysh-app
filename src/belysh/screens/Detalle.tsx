@@ -109,7 +109,7 @@ export default function Detalle(props: { s?: Service; onBook: () => void }) {
       </Scroll>
 
       <FixedBar>
-        <Btn full onPress={onBook}>{`Reservar este ritual · ${money(s.price)}`}</Btn>
+        <Btn full arrow onPress={onBook}>{`Reservar este ritual · ${money(s.price)}`}</Btn>
       </FixedBar>
     </View>
   );

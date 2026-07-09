@@ -9,6 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle } from 'react-native-svg';
+import * as Haptics from 'expo-haptics';
 import { T, G, TONE, EMERALD_CARD, serif, sans } from './theme';
 import { RES } from './images';
 import { money } from './lib/money';
@@ -125,8 +126,10 @@ export function Petal({ c = '#C9A063', w = 54 }: Any) {
   );
 }
 
-/* ───────────────────────── Botón ───────────────────────── */
-export function Btn({ children, onPress, kind = 'solid', full, disabled, style, textStyle }: Any) {
+/* ───────────────────────── Botón ─────────────────────────
+   CTA editorial (refs Mobbin: adidas/Careem): flecha opcional (`arrow`),
+   brillo interior superior en el degradado y háptica ligera al pulsar. */
+export function Btn({ children, onPress, kind = 'solid', full, disabled, style, textStyle, arrow }: Any) {
   // Texto del botón: envuelve en <Text> tanto un string/number suelto como un array
   // de textos (p.ej. "Reservar · $" + price), que en RN crashea si va fuera de <Text>.
   const isTextual = (c: Any) => c == null || typeof c === 'string' || typeof c === 'number';
@@ -135,18 +138,27 @@ export function Btn({ children, onPress, kind = 'solid', full, disabled, style, 
     ? <Text maxFontSizeMultiplier={1.4} style={[{ fontFamily: sans(600), fontSize: 14, letterSpacing: 0.4, color: kind === 'solid' ? '#fff' : T.roseDeep }, textStyle]}>{children}</Text>
     : children;
   const inner = (
-    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, paddingHorizontal: 26 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 16, paddingHorizontal: 26 }}>
       {label}
+      {arrow && (
+        <Svg width={15} height={13} viewBox="0 0 15 13" fill="none">
+          <Path d="M1 6.5h12M8.5 2l4.5 4.5L8.5 11" stroke={kind === 'solid' ? 'rgba(255,255,255,0.92)' : T.roseDeep}
+            strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      )}
     </View>
   );
+  const press = onPress
+    ? () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); onPress(); }
+    : undefined;
   return (
-    <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} onPress={disabled ? undefined : onPress}
+    <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} onPress={disabled ? undefined : press}
       style={({ pressed }) => [{ width: full ? '100%' : undefined, borderRadius: 999, overflow: 'hidden',
         opacity: disabled ? 0.4 : pressed ? 0.92 : 1,
         transform: [{ scale: pressed ? 0.97 : 1 }] }, style]}>
       {kind === 'solid' ? (
         <EmeraldGradient style={{ borderRadius: 999,
-          boxShadow: '0 14px 28px rgba(15,107,80,0.4)' as Any }}>{inner}</EmeraldGradient>
+          boxShadow: '0 14px 28px rgba(15,107,80,0.4), inset 0 1px 0 rgba(255,255,255,0.26)' as Any }}>{inner}</EmeraldGradient>
       ) : (
         <View style={{ borderRadius: 999, backgroundColor: T.soft }}>{inner}</View>
       )}

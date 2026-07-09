@@ -51,7 +51,7 @@ export default function Summary({ s, st, onConfirm, submitting }: { s: Service; 
           <Text style={{ fontFamily: sans(600), fontSize: 11.5, color: T.muted, marginTop: 14, lineHeight: 17 }}>Cancelación gratuita hasta 24 h antes. Te recordaremos tu cita un día antes.</Text>
         </View>
       </Scroll>
-      <FixedBar><Btn full onPress={onConfirm} disabled={submitting}>{submitting ? 'Reservando…' : 'Confirmar mi cita'}</Btn></FixedBar>
+      <FixedBar><Btn full arrow onPress={onConfirm} disabled={submitting}>{submitting ? 'Reservando…' : 'Confirmar mi cita'}</Btn></FixedBar>
     </View>
   );
 }
