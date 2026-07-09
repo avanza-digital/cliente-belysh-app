@@ -64,20 +64,34 @@ export default function Inicio({ openService, go }: { openService: (s: Service) 
   }, [user?.id]);
   const ti = tierInfo(spend);                          // NIVEL en soles
   // Próxima cita (patrón Fresha/Zocdoc): la más cercana en el futuro, no cancelada.
+  // Sin cita próxima: "repetir el último ritual" (Book again de Fresha) o, para
+  // invitadas sin historial, el atajo para guardar su cuenta. `apptChecked` evita
+  // mostrar esos fallbacks antes de saber si hay cita (sin parpadeo).
   const [nextAppt, setNextAppt] = useState<Appointment | null>(null);
+  const [lastDone, setLastDone] = useState<Appointment | null>(null);
+  const [apptChecked, setApptChecked] = useState(false);
   useEffect(() => {
     let ok = true;
-    if (!user?.id) { setNextAppt(null); return; }
+    setApptChecked(false);
+    if (!user?.id) { setNextAppt(null); setLastDone(null); setApptChecked(true); return; }
     listMyAppointments()
       .then((rows) => {
         if (!ok) return;
         const now = Date.now();
         const up = rows.find((a) => a.status !== 'cancelada' && a.status !== 'completada' && !!a.starts_at && new Date(a.starts_at).getTime() > now);
         setNextAppt(up ?? null);
+        // rows viene ascendente por starts_at → el último pasado no cancelado es el más reciente.
+        const past = [...rows].reverse().find((a) => a.status !== 'cancelada' && !!a.starts_at && new Date(a.starts_at).getTime() <= now);
+        setLastDone(past ?? null);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { if (ok) setApptChecked(true); });
     return () => { ok = false; };
   }, [user?.id]);
+  const isGuest = !!user?.is_anonymous;
+  const rebookSvc = lastDone
+    ? B.SERVICES.find((x) => x.id === lastDone.service_id) || B.SERVICES.find((x) => x.name === lastDone.service_name)
+    : undefined;
   const pop = B.SERVICES.filter((s) => s.popular);
   const promo = B.PROMOS[0];
   const promoSvc = promo ? B.SERVICES.find((x) => x.id === promo.serviceId) : undefined;
@@ -98,6 +112,57 @@ export default function Inicio({ openService, go }: { openService: (s: Service) 
           <Text style={{ fontFamily: serif(500, true), color: T.rose }}>{firstName}</Text>?
         </Text>
       </View>
+
+      {/* Sin cita próxima → "repetir el último ritual" (Book again de Fresha).
+          El hero ya invita a reservar en general, así que este card solo aparece
+          cuando puede ser PERSONAL (tu último servicio), no como CTA duplicado. */}
+      {!nextAppt?.starts_at && apptChecked && lastDone && rebookSvc && (
+        <Pressable onPress={() => openService(rebookSvc)} accessibilityRole="button"
+          accessibilityLabel={`Repetir ${rebookSvc.name}`}>
+          <Glass radius={22} style={{ marginTop: 20, marginHorizontal: 20, padding: 18, boxShadow: '0 10px 26px rgba(20,45,35,0.1)' as any }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+              <Photo tone={rebookSvc.tone} tag={rebookSvc.tag} img={rebookSvc.img} pos={rebookSvc.pos} h={56} r={16} style={{ width: 56 }} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Eyebrow style={{ fontSize: 9.5 }} c={T.goldText}>¿Repetimos?</Eyebrow>
+                <Text numberOfLines={1} style={{ fontFamily: serif(600), fontSize: 18, color: T.ink, marginTop: 4 }}>
+                  {rebookSvc.name}
+                </Text>
+                <Text numberOfLines={1} style={{ fontFamily: sans(600), fontSize: 12, color: T.body, marginTop: 3 }}>
+                  Tu último ritual · {fmtDate(lastDone.starts_at)}
+                </Text>
+              </View>
+              <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: T.soft, alignItems: 'center', justifyContent: 'center' }}>
+                <Svg width={7} height={12} viewBox="0 0 7 12">
+                  <Path d="M1 1l5 5-5 5" stroke={T.roseDeep} strokeWidth={1.6} fill="none" strokeLinecap="round" />
+                </Svg>
+              </View>
+            </View>
+          </Glass>
+        </Pressable>
+      )}
+
+      {/* Invitada sin historial → atajo para guardar su cuenta (el banner completo vive en Perfil) */}
+      {!nextAppt?.starts_at && apptChecked && !lastDone && isGuest && (
+        <Pressable onPress={() => go('perfil')} accessibilityRole="button"
+          accessibilityLabel="Guarda tus citas y puntos, crea tu cuenta">
+          <Glass radius={22} style={{ marginTop: 20, marginHorizontal: 20, paddingVertical: 14, paddingHorizontal: 18, boxShadow: '0 10px 26px rgba(20,45,35,0.1)' as any }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: T.soft, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: T.goldText, fontSize: 15 }}>✦</Text>
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontFamily: sans(700), fontSize: 13, color: T.ink }}>Guarda tus citas y puntos</Text>
+                <Text numberOfLines={1} style={{ fontFamily: sans(600), fontSize: 11.5, color: T.muted, marginTop: 2 }}>
+                  Crea tu cuenta gratis — tu historial te espera
+                </Text>
+              </View>
+              <Svg width={7} height={12} viewBox="0 0 7 12">
+                <Path d="M1 1l5 5-5 5" stroke={T.roseDeep} strokeWidth={1.6} fill="none" strokeLinecap="round" />
+              </Svg>
+            </View>
+          </Glass>
+        </Pressable>
+      )}
 
       {/* próxima cita (patrón Fresha/Zocdoc: "Up next" arriba del hero) */}
       {nextAppt?.starts_at && (

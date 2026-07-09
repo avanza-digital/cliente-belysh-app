@@ -5,6 +5,7 @@ import { BlurView } from 'expo-blur';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { T, G, serif, sans, RES } from '../ui';
 import { GUIDES } from '../data';
@@ -345,21 +346,25 @@ export default function Welcome() {
           <View style={{ flex: 1 }} />
 
           <View style={{ paddingHorizontal: 30, paddingBottom: 40 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <View style={{ width: 22, height: 1, backgroundColor: '#D9C18C' }} />
-              <Text style={{ fontFamily: sans(700), fontSize: 11, letterSpacing: 2.6, textTransform: 'uppercase', color: '#D9C18C' }}>
-                {g.num} — Belysh
+            {/* Solo el texto se re-anima al cambiar de paso (sin exiting: evita textos superpuestos);
+                la foto de fondo ya hace crossfade vía la prop transition de expo-image. */}
+            <Animated.View key={step} entering={FadeIn.duration(300)}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <View style={{ width: 22, height: 1, backgroundColor: '#D9C18C' }} />
+                <Text style={{ fontFamily: sans(700), fontSize: 11, letterSpacing: 2.6, textTransform: 'uppercase', color: '#D9C18C' }}>
+                  {g.num} — Belysh
+                </Text>
+              </View>
+
+              <Text style={{ fontFamily: serif(500), fontSize: 39, color: '#fff', lineHeight: Math.round(39 * 1.04) }}>
+                {g.a}<Text style={{ fontFamily: serif(500, true) }}>{g.b}</Text>
               </Text>
-            </View>
 
-            <Text style={{ fontFamily: serif(500), fontSize: 39, color: '#fff', lineHeight: Math.round(39 * 1.04) }}>
-              {g.a}<Text style={{ fontFamily: serif(500, true) }}>{g.b}</Text>
-            </Text>
-
-            <Text style={{
-              fontFamily: sans(400), fontSize: 14.5, color: 'rgba(255,255,255,0.82)',
-              lineHeight: Math.round(14.5 * 1.6), marginTop: 14, maxWidth: 300,
-            }}>{g.text}</Text>
+              <Text style={{
+                fontFamily: sans(400), fontSize: 14.5, color: 'rgba(255,255,255,0.82)',
+                lineHeight: Math.round(14.5 * 1.6), marginTop: 14, maxWidth: 300,
+              }}>{g.text}</Text>
+            </Animated.View>
 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 30 }}>
               <View style={{ flexDirection: 'row', gap: 7, flex: 1, alignItems: 'center' }}>
@@ -539,7 +544,10 @@ export default function Welcome() {
   return (
     <View style={{ flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#0A2A20' }}>
       <StatusBar style="light" />
-      {content}
+      {/* Crossfade entre fases (splash → welcome → guide/auth) sobre el fondo esmeralda oscuro. */}
+      <Animated.View key={phase} entering={FadeIn.duration(420)} exiting={FadeOut.duration(260)} style={{ flex: 1 }}>
+        {content}
+      </Animated.View>
     </View>
   );
 }

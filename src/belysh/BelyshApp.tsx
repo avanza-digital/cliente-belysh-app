@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Alert, BackHandler } from 'react-native';
+import Animated, { FadeIn, FadeInLeft, FadeInRight, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppBackground, TopBar, TabBar } from './ui';
 import { BELYSH, BookingState } from './data';
@@ -39,16 +40,24 @@ export default function BelyshApp() {
   const refreshUnread = useCallback(() => { countUnread().then(setUnread).catch(() => {}); }, []);
   useEffect(() => { if (session) refreshUnread(); else setUnread(0); }, [session, refreshUnread]);
 
-  const openNotifs = useCallback(() => { setScreen('notifs'); markNotifsSeen(); setUnread(0); }, []);
+  // Dirección de la última navegación → elige la animación de entrada del cuerpo:
+  // 'fwd' avanza en un flujo (desliza desde la derecha), 'back' retrocede (desde la
+  // izquierda), 'tab' cambia de pestaña (crossfade). Es estado (no ref) para poder
+  // leerlo en render; se batcha con el setScreen/setTab del mismo evento.
+  const [navDir, setNavDir] = useState<'fwd' | 'back' | 'tab'>('tab');
+  const push = useCallback((s: string) => { setNavDir('fwd'); setScreen(s); }, []);
+
+  const openNotifs = useCallback(() => { push('notifs'); markNotifsSeen(); setUnread(0); }, [push]);
   // Abrir un servicio limpia el estado de reserva (no arrastra estilista/día/hora de una reserva abandonada).
-  const openService = useCallback((s: any) => { setSel(s); setSt(EMPTY_ST); setScreen('detail'); }, []);
+  const openService = useCallback((s: any) => { setSel(s); setSt(EMPTY_ST); push('detail'); }, [push]);
   const back = useCallback(() => {
+    setNavDir('back');
     if (screen === 'summary') setScreen('booking');
     else if (screen === 'booking') setScreen('detail');
     else setScreen(null);
   }, [screen]);
-  const goTab = useCallback((t: string) => { setScreen(null); setTab(t); }, []);
-  const reset = useCallback(() => { setScreen(null); setSt(EMPTY_ST); setTab('inicio'); }, []);
+  const goTab = useCallback((t: string) => { setNavDir('tab'); setScreen(null); setTab(t); }, []);
+  const reset = useCallback(() => { setNavDir('tab'); setScreen(null); setSt(EMPTY_ST); setTab('inicio'); }, []);
 
   // Botón atrás de hardware (Android): retrocede dentro del flujo en vez de cerrar la app.
   useEffect(() => {
@@ -87,21 +96,21 @@ export default function BelyshApp() {
       scheduleReminder(appt); // recordatorio local 24 h antes (best-effort, no bloquea)
       await refreshProfile();
       refreshUnread();
-      setScreen('success');
+      push('success');
     } catch (e: any) {
       Alert.alert(st.rescheduleId ? 'No se pudo reagendar' : 'No se pudo reservar', traducir(e?.message));
     } finally {
       setSubmitting(false);
     }
-  }, [submitting, st, sel, refreshProfile, refreshUnread]);
+  }, [submitting, st, sel, refreshProfile, refreshUnread, push]);
 
   if (loading) return <View style={{ flex: 1, backgroundColor: '#0A2A20' }} />;
   if (!session) return <View style={{ flex: 1, backgroundColor: '#0A2A20' }}><Welcome /></View>;
 
   let body: React.ReactNode;
   let showBack = false, hideTabs = false, lightTop = false;
-  if (screen === 'detail') { body = <Detalle s={sel} onBook={() => setScreen('booking')} />; showBack = true; hideTabs = true; lightTop = true; }
-  else if (screen === 'booking') { body = <Booking s={sel} st={st} setSt={setSt} onNext={() => setScreen('summary')} />; showBack = true; hideTabs = true; }
+  if (screen === 'detail') { body = <Detalle s={sel} onBook={() => push('booking')} />; showBack = true; hideTabs = true; lightTop = true; }
+  else if (screen === 'booking') { body = <Booking s={sel} st={st} setSt={setSt} onNext={() => push('summary')} />; showBack = true; hideTabs = true; }
   else if (screen === 'summary') { body = <Summary s={sel} st={st} onConfirm={confirmBooking} submitting={submitting} />; showBack = true; hideTabs = true; }
   else if (screen === 'success') { body = <Success s={sel} st={st} appt={lastAppt} onHome={reset} />; hideTabs = true; }
   else if (screen === 'notifs') { body = <Notifs />; showBack = true; hideTabs = true; }
@@ -115,7 +124,7 @@ export default function BelyshApp() {
       if (!svc) { Alert.alert('No disponible', 'Este servicio ya no está en el catálogo. Reserva uno nuevo.'); return; }
       setSel(svc);
       setSt({ stylist: a.stylist_id ?? null, date: null, time: null, rescheduleId: a.id });
-      setScreen('booking');
+      push('booking');
     }}
     onRebook={(a) => {
       // "Reservar de nuevo": cita NUEVA con el mismo servicio/estilista (no mueve la anterior).
@@ -123,7 +132,7 @@ export default function BelyshApp() {
       if (!svc) { Alert.alert('No disponible', 'Este servicio ya no está en el catálogo. Reserva uno nuevo.'); return; }
       setSel(svc);
       setSt({ stylist: a.stylist_id ?? null, date: null, time: null, rescheduleId: null });
-      setScreen('booking');
+      push('booking');
     }}
   />;
 
@@ -140,7 +149,18 @@ export default function BelyshApp() {
           </View>
         )
       )}
-      <View style={{ flex: 1, minHeight: 0, zIndex: 1 }}>{body}</View>
+      <View style={{ flex: 1, minHeight: 0, zIndex: 1 }}>
+        {/* El key remonta el cuerpo al navegar; entering según dirección, salida en fade corto.
+            El chrome (TopBar/TabBar) queda estático: solo transiciona el contenido. */}
+        <Animated.View
+          key={screen ?? `tab:${tab}`}
+          entering={navDir === 'fwd' ? FadeInRight.duration(280) : navDir === 'back' ? FadeInLeft.duration(280) : FadeIn.duration(220)}
+          exiting={FadeOut.duration(140)}
+          style={{ flex: 1 }}
+        >
+          {body}
+        </Animated.View>
+      </View>
       {!hideTabs && <TabBar tab={tab} go={goTab} bottomInset={insets.bottom} />}
     </AppBackground>
   );
