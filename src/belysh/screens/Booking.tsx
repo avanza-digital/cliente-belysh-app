@@ -1,15 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import {
-  EmeraldGradient, Eyebrow, MonthCal, Scroll, FixedBar, Btn,
+  EmeraldGradient, Eyebrow, Glass, Scroll, FixedBar, Btn,
   T, serif, sans,
 } from '../ui';
 import { BELYSH, Service, BookingState } from '../data';
 import { takenTimes, fullDays } from '../api/appointments';
-import { todayLima, ymd, monthMatrix } from '../lib/date';
+import { todayLima, ymd } from '../lib/date';
 const B = BELYSH;
 
-const MONTH_HORIZON = 3; // meses hacia adelante reservables
+const DAYS_HORIZON = 42; // 6 semanas reservables en la tira de días
+
+const DOW = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+type DayCell = { ds: string; dow: number; d: number; m: number };
+function nextDays(n: number): DayCell[] {
+  const t = todayLima();
+  const base = Date.UTC(t.y, t.m - 1, t.d);
+  return Array.from({ length: n }, (_, i) => {
+    const dt = new Date(base + i * 86400000);
+    return { ds: ymd(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate()), dow: dt.getUTCDay(), d: dt.getUTCDate(), m: dt.getUTCMonth() };
+  });
+}
 
 export default function Booking({ s, st, setSt, onNext }: { s: Service; st: BookingState; setSt: React.Dispatch<React.SetStateAction<BookingState>>; onNext: () => void }) {
   const ready = st.date && st.time && st.stylist;
@@ -17,30 +30,22 @@ export default function Booking({ s, st, setSt, onNext }: { s: Service; st: Book
   const [loadErr, setLoadErr] = useState(false);
   const [fullDaysList, setFullDaysList] = useState<string[]>([]);
 
-  const today = todayLima();
-  const todayStr = ymd(today.y, today.m, today.d);
-  const [view, setView] = useState<{ y: number; m: number }>({ y: today.y, m: today.m });
+  const days = useMemo(() => nextDays(DAYS_HORIZON), []);
+  const todayStr = days[0].ds;
 
-  const curIdx = today.y * 12 + (today.m - 1);
-  const viewIdx = view.y * 12 + (view.m - 1);
-  const canPrev = viewIdx > curIdx;
-  const canNext = viewIdx < curIdx + MONTH_HORIZON;
-  const stepMonth = (delta: number) => {
-    const idx = view.y * 12 + (view.m - 1) + delta;
-    setView({ y: Math.floor(idx / 12), m: (idx % 12) + 1 });
-  };
+  // Franjas: mañana (antes de 12:00) y tarde, como agrupan Careem/Zocdoc.
+  const morning = useMemo(() => B.TIMES.filter((t: string) => parseInt(t, 10) < 12), []);
+  const afternoon = useMemo(() => B.TIMES.filter((t: string) => parseInt(t, 10) >= 12), []);
 
-  // Días completamente llenos para la estilista en el mes visible.
+  // Días completamente llenos para la estilista en las próximas 6 semanas.
   useEffect(() => {
     let alive = true;
     if (!st.stylist) { setFullDaysList([]); return; }
-    const from = ymd(view.y, view.m, 1);
-    const to = ymd(view.y, view.m, monthMatrix(view.y, view.m).days);
-    fullDays(st.stylist, from, to)
+    fullDays(st.stylist, days[0].ds, days[days.length - 1].ds)
       .then((arr) => { if (alive) setFullDaysList(arr); })
       .catch(() => { if (alive) setFullDaysList([]); });
     return () => { alive = false; };
-  }, [view, st.stylist]);
+  }, [st.stylist, days]);
 
   // Cupos por hora ya reservados para ese día + estilista (disponibilidad real).
   useEffect(() => {
@@ -64,9 +69,30 @@ export default function Booking({ s, st, setSt, onNext }: { s: Service; st: Book
 
   const dayFull = st.stylist && st.date && !loadErr && B.TIMES.length > 0 && B.TIMES.every((t: string) => takenList.includes(t));
 
+  const TimeChip = ({ t }: { t: string }) => {
+    const isTaken = takenList.includes(t);
+    const on = st.time === t;
+    return (
+      <Pressable key={t} disabled={isTaken} onPress={() => setSt((o: any) => ({ ...o, time: t }))}
+        accessibilityRole="button" accessibilityLabel={`${t}${isTaken ? ', no disponible' : ''}`} accessibilityState={{ selected: on, disabled: isTaken }}
+        style={{
+          width: '31%', borderRadius: 16, paddingVertical: 15, alignItems: 'center', justifyContent: 'center',
+          backgroundColor: on ? undefined : '#fff', opacity: isTaken ? 0.45 : 1,
+          boxShadow: (on ? '0 8px 18px rgba(15,107,80,0.3)' : '0 4px 12px rgba(20,45,35,0.05)') as any,
+        }}>
+        {on && <EmeraldGradient style={[StyleSheet.absoluteFill, { borderRadius: 16 }]} />}
+        <Text style={{
+          fontFamily: sans(600), fontSize: 14,
+          color: on ? '#fff' : isTaken ? T.muted : T.ink,
+          textDecorationLine: isTaken ? 'line-through' : 'none',
+        }}>{t}</Text>
+      </Pressable>
+    );
+  };
+
   return (
     <View style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-      <Scroll pb={120}>
+      <Scroll pb={140}>
         <View style={{ paddingHorizontal: 22 }}>
           <Eyebrow>Reservar</Eyebrow>
           <Text style={{ fontFamily: serif(500), fontSize: 27, color: T.ink, marginTop: 6, lineHeight: 30 }}>{s.name}</Text>
@@ -100,14 +126,43 @@ export default function Booking({ s, st, setSt, onNext }: { s: Service; st: Book
           </ScrollView>
 
           <Eyebrow style={{ marginTop: 26, marginBottom: 12 }}>¿Qué día?</Eyebrow>
-          <MonthCal
-            year={view.y} month={view.m} todayStr={todayStr}
-            selected={st.date} fullDays={fullDaysList}
-            onPick={(dateStr: string) => setSt((o: any) => ({ ...o, date: dateStr }))}
-            onPrev={() => stepMonth(-1)} onNext={() => stepMonth(1)}
-            canPrev={canPrev} canNext={canNext}
-          />
+        </View>
 
+        {/* Tira horizontal de días (6 semanas), estilo Careem/Warby Parker */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 10, paddingHorizontal: 22, paddingTop: 2, paddingBottom: 8 }}>
+          {days.map((c) => {
+            const full = fullDaysList.includes(c.ds);
+            const on = st.date === c.ds;
+            const isToday = c.ds === todayStr;
+            return (
+              <Pressable key={c.ds} disabled={full} onPress={() => setSt((o: any) => ({ ...o, date: c.ds }))}
+                accessibilityRole="button"
+                accessibilityLabel={`${DOW[c.dow]} ${c.d} de ${MES[c.m]}${full ? ', no disponible' : ''}`}
+                accessibilityState={{ selected: on, disabled: full }}
+                style={{
+                  flexShrink: 0, width: 62, borderRadius: 18, paddingVertical: 12, alignItems: 'center',
+                  backgroundColor: on ? undefined : '#fff', opacity: full ? 0.45 : 1,
+                  borderWidth: isToday && !on ? 1.5 : 0, borderColor: T.rose,
+                  boxShadow: (on ? '0 10px 22px rgba(15,107,80,0.3)' : '0 6px 16px rgba(20,45,35,0.06)') as any,
+                }}>
+                {on && <EmeraldGradient style={[StyleSheet.absoluteFill, { borderRadius: 18 }]} />}
+                <Text style={{ fontFamily: sans(700), fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: on ? 'rgba(255,255,255,0.85)' : T.muted }}>
+                  {DOW[c.dow]}
+                </Text>
+                <Text style={{
+                  fontFamily: serif(600), fontSize: 22, color: on ? '#fff' : full ? T.muted : T.ink, marginTop: 2,
+                  textDecorationLine: full ? 'line-through' : 'none',
+                }}>{c.d}</Text>
+                <Text style={{ fontFamily: sans(600), fontSize: 9.5, color: on ? 'rgba(255,255,255,0.75)' : T.muted, marginTop: 1 }}>
+                  {MES[c.m]}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        <View style={{ paddingHorizontal: 22 }}>
           <Eyebrow style={{ marginTop: 26, marginBottom: 4 }}>¿A qué hora?</Eyebrow>
           {!st.stylist || !st.date ? (
             <Text style={{ fontFamily: sans(600), fontSize: 12, color: T.muted, marginBottom: 12 }}>
@@ -128,33 +183,40 @@ export default function Booking({ s, st, setSt, onNext }: { s: Service; st: Book
             <View style={{ height: 8 }} />
           )}
           {st.stylist && st.date && !loadErr && !dayFull && (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-              {B.TIMES.map((t: string) => {
-                const isTaken = takenList.includes(t);
-                const on = st.time === t;
-                return (
-                  <Pressable key={t} disabled={isTaken} onPress={() => setSt((o: any) => ({ ...o, time: t }))}
-                    accessibilityRole="button" accessibilityLabel={`${t}${isTaken ? ', no disponible' : ''}`} accessibilityState={{ selected: on, disabled: isTaken }}
-                    style={{
-                      width: '31%', borderRadius: 16, paddingVertical: 15, alignItems: 'center', justifyContent: 'center',
-                      backgroundColor: on ? undefined : '#fff', opacity: isTaken ? 0.45 : 1,
-                      boxShadow: (on ? '0 8px 18px rgba(15,107,80,0.3)' : '0 4px 12px rgba(20,45,35,0.05)') as any,
-                    }}>
-                    {on && <EmeraldGradient style={[StyleSheet.absoluteFill, { borderRadius: 16 }]} />}
-                    <Text style={{
-                      fontFamily: sans(600), fontSize: 14,
-                      color: on ? '#fff' : isTaken ? T.muted : T.ink,
-                      textDecorationLine: isTaken ? 'line-through' : 'none',
-                    }}>{t}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <>
+              <Text style={{ fontFamily: sans(700), fontSize: 11, letterSpacing: 1.4, textTransform: 'uppercase', color: T.goldText, marginBottom: 10 }}>Mañana</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
+                {morning.map((t: string) => <TimeChip key={t} t={t} />)}
+              </View>
+              <Text style={{ fontFamily: sans(700), fontSize: 11, letterSpacing: 1.4, textTransform: 'uppercase', color: T.goldText, marginBottom: 10 }}>Tarde</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                {afternoon.map((t: string) => <TimeChip key={t} t={t} />)}
+              </View>
+            </>
           )}
+
+          {/* Nota tipo Careem: política real (Perfil permite reagendar/cancelar) */}
+          <Glass radius={18} style={{ marginTop: 22, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: T.soft, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontFamily: serif(700), fontSize: 14, color: T.roseDeep }}>i</Text>
+            </View>
+            <Text style={{ flex: 1, fontFamily: sans(600), fontSize: 12, lineHeight: 17, color: T.body }}>
+              Puedes reagendar o cancelar tu cita sin costo desde tu perfil.
+            </Text>
+          </Glass>
         </View>
       </Scroll>
       <FixedBar>
-        <Btn full onPress={ready ? onNext : undefined} disabled={!ready} style={{ opacity: ready ? 1 : 0.4 }}>Continuar</Btn>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <View style={{ flexShrink: 0 }}>
+            <Text style={{ fontFamily: sans(700), fontSize: 10, letterSpacing: 1.2, textTransform: 'uppercase', color: T.muted }}>Total</Text>
+            <Text style={{ fontFamily: serif(600), fontSize: 22, color: T.ink }}>
+              S/ {s.price}
+              <Text style={{ fontFamily: sans(600), fontSize: 12, color: T.muted }}>  · {s.min} min</Text>
+            </Text>
+          </View>
+          <Btn onPress={ready ? onNext : undefined} disabled={!ready} style={{ flex: 1, opacity: ready ? 1 : 0.4 }}>Continuar</Btn>
+        </View>
       </FixedBar>
     </View>
   );
