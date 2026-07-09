@@ -4,7 +4,7 @@ import Svg, { Path, Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   T, serif, sans,
-  Scroll, Photo, Eyebrow, Petal, Glass, EmeraldCard, EmeraldGradient, Stars,
+  Scroll, Photo, Eyebrow, Petal, Glass, EmeraldCard, EmeraldGradient,
 } from '../ui';
 import { BELYSH, Service } from '../data';
 import { useAuth } from '../api/auth';
@@ -231,47 +231,6 @@ export default function Inicio({ openService, go }: { openService: (s: Service) 
               <Text style={{ fontFamily: sans(700), fontSize: 12.5, color: T.rose, marginTop: 5, paddingHorizontal: 4, paddingBottom: 6 }}>{`${money(s.price)} · ${s.min} min`}</Text>
             </Glass>
           </Pressable>
-        ))}
-      </ScrollView>
-
-      {/* nuestro equipo (patrón Fresha: los proveedores generan confianza) */}
-      <View style={{ paddingTop: 28, paddingHorizontal: 20, paddingBottom: 4 }}>
-        <Text style={{ fontFamily: serif(600), fontSize: 24, color: T.ink }}>Nuestro equipo</Text>
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 12, paddingTop: 10, paddingHorizontal: 20, paddingBottom: 4 }}>
-        {B.STYLISTS.map((p) => (
-          <Glass key={p.id} radius={20} style={{ width: 128, alignItems: 'center', paddingVertical: 16, paddingHorizontal: 10, boxShadow: '0 8px 20px rgba(20,45,35,0.07)' as any }}>
-            <View style={{ width: 56, height: 56, borderRadius: 28, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(15,107,80,0.28), 0 0 0 2px rgba(201,160,99,0.45)' as any }}>
-              <EmeraldGradient style={StyleSheet.absoluteFill} />
-              <Text style={{ fontFamily: serif(600), fontSize: 19, color: '#fff' }}>{p.initials}</Text>
-            </View>
-            <Text style={{ fontFamily: sans(700), fontSize: 12.5, color: T.ink, marginTop: 10 }}>{p.name}</Text>
-            <Text numberOfLines={1} style={{ fontFamily: sans(500), fontSize: 10, color: T.muted, marginTop: 3 }}>{p.role}</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
-              <Text style={{ color: '#C9A063', fontSize: 11 }}>★</Text>
-              <Text style={{ fontFamily: sans(700), fontSize: 11, color: T.goldText, fontVariant: ['tabular-nums'] }}>{p.rating.toFixed(1)}</Text>
-            </View>
-          </Glass>
-        ))}
-      </ScrollView>
-
-      {/* reseñas (social proof editorial) */}
-      <View style={{ paddingTop: 28, paddingHorizontal: 20, paddingBottom: 4 }}>
-        <Text style={{ fontFamily: serif(600), fontSize: 24, color: T.ink }}>Ellas ya se consintieron</Text>
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 14, paddingTop: 10, paddingHorizontal: 20, paddingBottom: 4 }}>
-        {B.REVIEWS.map((r) => (
-          <Glass key={r.id} radius={22} style={{ width: 260, padding: 18, boxShadow: '0 8px 22px rgba(20,45,35,0.08)' as any }}>
-            <Stars n={r.stars} s={11} />
-            <Text style={{ fontFamily: serif(500, true), fontSize: 15.5, color: T.ink, marginTop: 10, lineHeight: 21 }}>
-              “{r.text}”
-            </Text>
-            <Text style={{ fontFamily: sans(700), fontSize: 11.5, color: T.muted, marginTop: 12 }}>
-              {r.name} <Text style={{ fontFamily: sans(600), color: T.goldText }}>· {r.service}</Text>
-            </Text>
-          </Glass>
         ))}
       </ScrollView>
 
