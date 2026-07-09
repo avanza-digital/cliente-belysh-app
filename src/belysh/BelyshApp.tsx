@@ -7,6 +7,7 @@ import { useAuth } from './api/auth';
 import { createAppointment, reschedule } from './api/appointments';
 import { Appointment } from './types/db';
 import { countUnread, markNotifsSeen } from './api/notifications';
+import { scheduleReminder } from './lib/reminders';
 import { traducir } from './lib/errors';
 
 import Welcome from './screens/Welcome';
@@ -83,6 +84,7 @@ export default function BelyshApp() {
         });
       }
       setLastAppt(appt);
+      scheduleReminder(appt); // recordatorio local 24 h antes (best-effort, no bloquea)
       await refreshProfile();
       refreshUnread();
       setScreen('success');
@@ -107,13 +109,23 @@ export default function BelyshApp() {
   else if (tab === 'servicios') body = <Servicios openService={openService} />;
   else if (tab === 'promos') body = <Promos go={goTab} openService={openService} />;
   else if (tab === 'club') body = <Club />;
-  else body = <Perfil onReschedule={(a) => {
-    const svc = B.SERVICES.find((x) => x.id === a.service_id) || B.SERVICES.find((x) => x.name === a.service_name);
-    if (!svc) { Alert.alert('No disponible', 'Este servicio ya no está en el catálogo. Reserva uno nuevo.'); return; }
-    setSel(svc);
-    setSt({ stylist: a.stylist_id ?? null, date: null, time: null, rescheduleId: a.id });
-    setScreen('booking');
-  }} />;
+  else body = <Perfil
+    onReschedule={(a) => {
+      const svc = B.SERVICES.find((x) => x.id === a.service_id) || B.SERVICES.find((x) => x.name === a.service_name);
+      if (!svc) { Alert.alert('No disponible', 'Este servicio ya no está en el catálogo. Reserva uno nuevo.'); return; }
+      setSel(svc);
+      setSt({ stylist: a.stylist_id ?? null, date: null, time: null, rescheduleId: a.id });
+      setScreen('booking');
+    }}
+    onRebook={(a) => {
+      // "Reservar de nuevo": cita NUEVA con el mismo servicio/estilista (no mueve la anterior).
+      const svc = B.SERVICES.find((x) => x.id === a.service_id) || B.SERVICES.find((x) => x.name === a.service_name);
+      if (!svc) { Alert.alert('No disponible', 'Este servicio ya no está en el catálogo. Reserva uno nuevo.'); return; }
+      setSel(svc);
+      setSt({ stylist: a.stylist_id ?? null, date: null, time: null, rescheduleId: null });
+      setScreen('booking');
+    }}
+  />;
 
   return (
     <AppBackground>

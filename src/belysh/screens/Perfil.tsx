@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, Pressable, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import {
   Scroll, Eyebrow, Glass, EmeraldGradient,
@@ -7,6 +7,7 @@ import {
 } from '../ui';
 import { useAuth } from '../api/auth';
 import { listMyAppointments, cancelAppointment } from '../api/appointments';
+import { cancelReminder } from '../lib/reminders';
 import { traducir } from '../lib/errors';
 import { fmtDate, fmtTime } from '../lib/date';
 import { Appointment } from '../types/db';
@@ -56,8 +57,74 @@ function PillBtn({ kind, label, onPress, full }: any) {
   );
 }
 
-export default function Perfil({ onReschedule }: { onReschedule: (a: Appointment) => void }) {
-  const { profile, signOut } = useAuth();
+// Banner + formulario inline para que la invitada guarde su cuenta (citas y puntos
+// se conservan: es el mismo usuario de Supabase, solo se le añade email/contraseña).
+function GuestBanner({ onConvert }: { onConvert: (name: string, email: string, pwd: string) => Promise<void> }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [pwd, setPwd] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const inputStyle = {
+    fontFamily: sans(600), fontSize: 14, color: T.ink,
+    backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: T.line,
+    paddingVertical: 13, paddingHorizontal: 16,
+  } as const;
+
+  const submit = async () => {
+    if (busy) return;
+    if (!email.trim() || !pwd) { Alert.alert('Faltan datos', 'Escribe tu correo y una contraseña.'); return; }
+    if (pwd.length < 6) { Alert.alert('Contraseña corta', 'Usa al menos 6 caracteres.'); return; }
+    setBusy(true);
+    try {
+      await onConvert(name.trim(), email, pwd);
+      setSent(true);
+    } catch (e: any) {
+      Alert.alert('Ups', traducir(e?.message));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Glass radius={22} style={{ marginTop: 22, marginHorizontal: 20, padding: 18, boxShadow: '0 10px 26px rgba(20,45,35,0.1)' as any }}>
+      {sent ? (
+        <>
+          <Text style={{ fontFamily: serif(600), fontSize: 19, color: T.ink }}>Revisa tu correo ✉️</Text>
+          <Text style={{ fontFamily: sans(600), fontSize: 12.5, color: T.body, marginTop: 6, lineHeight: 18 }}>
+            Te enviamos un enlace a {email.trim()}. Al confirmarlo, tu cuenta quedará guardada con tus citas y puntos.
+          </Text>
+        </>
+      ) : (
+        <>
+          <Eyebrow c={T.goldText} style={{ fontSize: 9.5 }}>Estás como invitada</Eyebrow>
+          <Text style={{ fontFamily: serif(600), fontSize: 19, color: T.ink, marginTop: 5 }}>Guarda tus citas y puntos</Text>
+          <Text style={{ fontFamily: sans(600), fontSize: 12.5, color: T.body, marginTop: 5, lineHeight: 18 }}>
+            Crea tu cuenta y conserva todo tu historial: nada se pierde si cambias de teléfono.
+          </Text>
+          {open && (
+            <View style={{ gap: 10, marginTop: 14 }}>
+              <TextInput placeholder="Tu nombre" placeholderTextColor={T.muted} value={name} onChangeText={setName}
+                autoCapitalize="words" style={inputStyle} accessibilityLabel="Tu nombre" />
+              <TextInput placeholder="Correo electrónico" placeholderTextColor={T.muted} value={email} onChangeText={setEmail}
+                autoCapitalize="none" keyboardType="email-address" autoComplete="email" style={inputStyle} accessibilityLabel="Correo electrónico" />
+              <TextInput placeholder="Contraseña (mín. 6)" placeholderTextColor={T.muted} value={pwd} onChangeText={setPwd}
+                secureTextEntry style={inputStyle} accessibilityLabel="Contraseña" />
+            </View>
+          )}
+          <PillBtn kind="grad" full label={busy ? 'Guardando…' : open ? 'Guardar mi cuenta' : 'Crear mi cuenta'}
+            onPress={open ? submit : () => setOpen(true)} />
+        </>
+      )}
+    </Glass>
+  );
+}
+
+export default function Perfil({ onReschedule, onRebook }: { onReschedule: (a: Appointment) => void; onRebook: (a: Appointment) => void }) {
+  const { profile, user, signOut, convertGuest } = useAuth();
+  const isGuest = !!user?.is_anonymous;
   const [appts, setAppts] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -92,7 +159,7 @@ export default function Perfil({ onReschedule }: { onReschedule: (a: Appointment
       {
         text: 'Sí, cancelar', style: 'destructive',
         onPress: async () => {
-          try { await cancelAppointment(id); await load(); }
+          try { await cancelAppointment(id); cancelReminder(id); await load(); }
           catch (e: any) { Alert.alert('Ups', traducir(e?.message)); }
         },
       },
@@ -105,7 +172,7 @@ export default function Perfil({ onReschedule }: { onReschedule: (a: Appointment
     return { c: T.roseDeep, bg: T.soft };
   };
 
-  const name = profile?.full_name || 'Bienvenida';
+  const name = profile?.full_name || (isGuest ? 'Invitada' : 'Bienvenida');
   // "Visitas" = solo citas realmente completadas (no futuras ni canceladas).
   const visits = appts.filter((a) => a.status === 'completada').length;
 
@@ -138,10 +205,20 @@ export default function Perfil({ onReschedule }: { onReschedule: (a: Appointment
         <View style={{ flex: 1 }}>
           <Text style={{ fontFamily: serif(600), fontSize: 25, color: T.ink }}>{name}</Text>
           <Text style={{ fontFamily: sans(600), fontSize: 12.5, color: T.muted, marginTop: 3 }}>
-            {profile?.member_since ? `Miembro desde ${yearOf(profile.member_since)}` : 'Miembro Belysh'} · {visits} {visits === 1 ? 'visita' : 'visitas'}
+            {isGuest ? 'Cuenta de invitada' : profile?.member_since ? `Miembro desde ${yearOf(profile.member_since)}` : 'Miembro Belysh'} · {visits} {visits === 1 ? 'visita' : 'visitas'}
           </Text>
         </View>
       </View>
+
+      {/* Invitada: convertir a cuenta real conservando citas y puntos (patrón Tubi/Skip) */}
+      {isGuest && (
+        <GuestBanner
+          onConvert={async (name, email, pwd) => {
+            const { error } = await convertGuest(email, pwd, name || undefined);
+            if (error) throw error;
+          }}
+        />
+      )}
 
       {/* Mis citas */}
       <Eyebrow style={{ paddingTop: 26, paddingHorizontal: 20, paddingBottom: 12 }}>Mis citas</Eyebrow>
@@ -193,13 +270,15 @@ export default function Perfil({ onReschedule }: { onReschedule: (a: Appointment
                 <Text style={{ fontFamily: sans(600), fontSize: 13, color: T.body, marginTop: 10 }}>
                   {fmtDate(a.starts_at)} · {fmtTime(a.starts_at)}{a.stylist_name ? ` · con ${a.stylist_name}` : ''}
                 </Text>
-                {!cancelled ? (
+                {a.status === 'completada' || cancelled ? (
+                  // Cita terminada o cancelada → NUEVA reserva (patrón "Book again" de Fresha),
+                  // nunca reagendar la cita vieja.
+                  <PillBtn kind="grad" full label="Reservar de nuevo" onPress={() => onRebook && onRebook(a)} />
+                ) : (
                   <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
                     <PillBtn kind="ghost" label="Reagendar" onPress={() => onReschedule && onReschedule(a)} />
                     <PillBtn kind="soft" label="Cancelar" onPress={() => cancel(a.id)} />
                   </View>
-                ) : (
-                  <PillBtn kind="grad" full label="Reservar de nuevo" onPress={() => onReschedule && onReschedule(a)} />
                 )}
               </Glass>
             );

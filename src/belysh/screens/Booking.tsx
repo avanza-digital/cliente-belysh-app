@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import {
   EmeraldGradient, Eyebrow, Glass, Scroll, FixedBar, Btn,
   T, serif, sans,
@@ -28,7 +29,14 @@ export default function Booking({ s, st, setSt, onNext }: { s: Service; st: Book
   const ready = st.date && st.time && st.stylist;
   const [takenList, setTakenList] = useState<string[]>([]);
   const [loadErr, setLoadErr] = useState(false);
+  const [loadingTimes, setLoadingTimes] = useState(false);
   const [fullDaysList, setFullDaysList] = useState<string[]>([]);
+
+  // Selección con feedback háptico sutil (no-op si el dispositivo no lo soporta).
+  const pick = (patch: Partial<BookingState>) => {
+    Haptics.selectionAsync().catch(() => {});
+    setSt((o: any) => ({ ...o, ...patch }));
+  };
 
   const days = useMemo(() => nextDays(DAYS_HORIZON), []);
   const todayStr = days[0].ds;
@@ -53,6 +61,7 @@ export default function Booking({ s, st, setSt, onNext }: { s: Service; st: Book
     setLoadErr(false);
     if (st.date && st.stylist) {
       setTakenList([]); // limpia disponibilidad anterior mientras carga
+      setLoadingTimes(true);
       takenTimes(st.date, st.stylist)
         .then((arr) => {
           if (!alive) return;
@@ -60,9 +69,11 @@ export default function Booking({ s, st, setSt, onNext }: { s: Service; st: Book
           // updater funcional: lee la hora ACTUAL (sin closure obsoleto)
           setSt((o: any) => (o.time && arr.includes(o.time) ? { ...o, time: null } : o));
         })
-        .catch(() => { if (alive) setLoadErr(true); });
+        .catch(() => { if (alive) setLoadErr(true); })
+        .finally(() => { if (alive) setLoadingTimes(false); });
     } else {
       setTakenList([]);
+      setLoadingTimes(false);
     }
     return () => { alive = false; };
   }, [st.date, st.stylist, setSt]);
@@ -73,7 +84,7 @@ export default function Booking({ s, st, setSt, onNext }: { s: Service; st: Book
     const isTaken = takenList.includes(t);
     const on = st.time === t;
     return (
-      <Pressable key={t} disabled={isTaken} onPress={() => setSt((o: any) => ({ ...o, time: t }))}
+      <Pressable key={t} disabled={isTaken} onPress={() => pick({ time: t })}
         accessibilityRole="button" accessibilityLabel={`${t}${isTaken ? ', no disponible' : ''}`} accessibilityState={{ selected: on, disabled: isTaken }}
         style={{
           width: '31%', borderRadius: 16, paddingVertical: 15, alignItems: 'center', justifyContent: 'center',
@@ -103,7 +114,7 @@ export default function Booking({ s, st, setSt, onNext }: { s: Service; st: Book
             {B.STYLISTS.map((p: any) => {
               const on = st.stylist === p.id;
               return (
-                <Pressable key={p.id} onPress={() => setSt((o: any) => ({ ...o, stylist: p.id }))}
+                <Pressable key={p.id} onPress={() => pick({ stylist: p.id })}
                   accessibilityRole="button" accessibilityLabel={p.name} accessibilityState={{ selected: on }}
                   style={{
                     flexShrink: 0, width: 96, borderRadius: 18, paddingVertical: 16, paddingHorizontal: 8,
@@ -136,7 +147,7 @@ export default function Booking({ s, st, setSt, onNext }: { s: Service; st: Book
             const on = st.date === c.ds;
             const isToday = c.ds === todayStr;
             return (
-              <Pressable key={c.ds} disabled={full} onPress={() => setSt((o: any) => ({ ...o, date: c.ds }))}
+              <Pressable key={c.ds} disabled={full} onPress={() => pick({ date: c.ds })}
                 accessibilityRole="button"
                 accessibilityLabel={`${DOW[c.dow]} ${c.d} de ${MES[c.m]}${full ? ', no disponible' : ''}`}
                 accessibilityState={{ selected: on, disabled: full }}
@@ -182,7 +193,17 @@ export default function Booking({ s, st, setSt, onNext }: { s: Service; st: Book
           ) : (
             <View style={{ height: 8 }} />
           )}
-          {st.stylist && st.date && !loadErr && !dayFull && (
+          {st.stylist && st.date && loadingTimes && !loadErr && (
+            // Skeleton de cupos: mismas dimensiones que los chips reales, sin salto de layout.
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+              {B.TIMES.map((t: string) => (
+                <View key={t} style={{ width: '31%', borderRadius: 16, paddingVertical: 15, backgroundColor: T.soft, opacity: 0.55 }}>
+                  <Text style={{ fontFamily: sans(600), fontSize: 14, color: 'transparent' }}>{t}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+          {st.stylist && st.date && !loadingTimes && !loadErr && !dayFull && (
             <>
               <Text style={{ fontFamily: sans(700), fontSize: 11, letterSpacing: 1.4, textTransform: 'uppercase', color: T.goldText, marginBottom: 10 }}>Mañana</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>

@@ -17,6 +17,9 @@ type AuthValue = {
   signIn: (email: string, password: string) => ReturnType<typeof supabase.auth.signInWithPassword>;
   signUp: (email: string, password: string, fullName?: string) => ReturnType<typeof supabase.auth.signUp>;
   signInGuest: () => ReturnType<typeof supabase.auth.signInAnonymously>;
+  // Convierte la cuenta anónima (invitada) en cuenta real conservando citas y puntos.
+  // Con "confirm email" activo, Supabase envía un enlace: la conversión se completa al confirmarlo.
+  convertGuest: (email: string, password: string, fullName?: string) => ReturnType<typeof supabase.auth.updateUser>;
   signInWithGoogle: () => Promise<{ cancelled: boolean }>;
   resetPassword: (email: string) => ReturnType<typeof supabase.auth.resetPasswordForEmail>;
   signOut: () => ReturnType<typeof supabase.auth.signOut>;
@@ -79,6 +82,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signUp: (email, password, fullName) =>
       supabase.auth.signUp({ email: email.trim(), password, options: { data: { full_name: fullName } } }),
     signInGuest: () => supabase.auth.signInAnonymously(),
+    convertGuest: async (email, password, fullName) => {
+      const res = await supabase.auth.updateUser({
+        email: email.trim(),
+        password,
+        data: fullName ? { full_name: fullName } : undefined,
+      });
+      // el trigger de profiles solo corre al CREAR el usuario; al convertir hay que
+      // guardar el nombre directamente (RLS: profiles_update_own).
+      if (!res.error && fullName && session?.user?.id) {
+        await supabase.from('profiles').update({ full_name: fullName }).eq('id', session.user.id);
+        await loadProfile(session.user.id);
+      }
+      return res;
+    },
     signInWithGoogle: async () => {
       const redirectTo = Linking.createURL('auth-callback');
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -99,7 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     resetPassword: (email: string) =>
       supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: Linking.createURL('reset') }),
     signOut: () => supabase.auth.signOut(),
-  }), [session, profile, loading, refreshProfile]);
+  }), [session, profile, loading, refreshProfile, loadProfile]);
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }

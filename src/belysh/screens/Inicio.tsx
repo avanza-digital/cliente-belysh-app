@@ -4,14 +4,16 @@ import Svg, { Path, Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   T, serif, sans,
-  Scroll, Photo, Eyebrow, Petal, Glass, EmeraldCard,
+  Scroll, Photo, Eyebrow, Petal, Glass, EmeraldCard, EmeraldGradient,
 } from '../ui';
 import { BELYSH, Service } from '../data';
 import { useAuth } from '../api/auth';
 import { getClientSpend12m } from '../api/club';
+import { listMyAppointments } from '../api/appointments';
+import { Appointment } from '../types/db';
 import { tierInfo } from '../lib/club';
 import { money } from '../lib/money';
-import { partsLima } from '../lib/date';
+import { partsLima, fmtDate, fmtTime } from '../lib/date';
 
 const B = BELYSH;
 
@@ -61,6 +63,21 @@ export default function Inicio({ openService, go }: { openService: (s: Service) 
     return () => { ok = false; };
   }, [user?.id]);
   const ti = tierInfo(spend);                          // NIVEL en soles
+  // Próxima cita (patrón Fresha/Zocdoc): la más cercana en el futuro, no cancelada.
+  const [nextAppt, setNextAppt] = useState<Appointment | null>(null);
+  useEffect(() => {
+    let ok = true;
+    if (!user?.id) { setNextAppt(null); return; }
+    listMyAppointments()
+      .then((rows) => {
+        if (!ok) return;
+        const now = Date.now();
+        const up = rows.find((a) => a.status !== 'cancelada' && a.status !== 'completada' && !!a.starts_at && new Date(a.starts_at).getTime() > now);
+        setNextAppt(up ?? null);
+      })
+      .catch(() => {});
+    return () => { ok = false; };
+  }, [user?.id]);
   const pop = B.SERVICES.filter((s) => s.popular);
   const cats = [
     { name: 'Corte', tint: 'rose' },
@@ -79,6 +96,41 @@ export default function Inicio({ openService, go }: { openService: (s: Service) 
           <Text style={{ fontFamily: serif(500, true), color: T.rose }}>{firstName}</Text>?
         </Text>
       </View>
+
+      {/* próxima cita (patrón Fresha/Zocdoc: "Up next" arriba del hero) */}
+      {nextAppt?.starts_at && (
+        <Pressable onPress={() => go('perfil')} accessibilityRole="button"
+          accessibilityLabel={`Tu próxima cita: ${nextAppt.service_name}, ${fmtDate(nextAppt.starts_at)} a las ${fmtTime(nextAppt.starts_at)}`}>
+          <Glass radius={22} style={{ marginTop: 20, marginHorizontal: 20, padding: 18, boxShadow: '0 10px 26px rgba(20,45,35,0.1)' as any }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+              {/* bloque fecha tipo calendario */}
+              <View style={{ width: 56, borderRadius: 16, overflow: 'hidden', alignItems: 'center' }}>
+                <EmeraldGradient style={StyleSheet.absoluteFill} />
+                <Text style={{ fontFamily: sans(700), fontSize: 9, letterSpacing: 1.4, color: 'rgba(255,255,255,0.85)', textTransform: 'uppercase', marginTop: 8 }}>
+                  {fmtDate(nextAppt.starts_at).split(' ')[0]}
+                </Text>
+                <Text style={{ fontFamily: serif(600), fontSize: 24, color: '#fff', marginTop: 1, marginBottom: 8 }}>
+                  {partsLima(nextAppt.starts_at).d}
+                </Text>
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Eyebrow style={{ fontSize: 9.5 }} c={T.goldText}>Tu próxima cita</Eyebrow>
+                <Text numberOfLines={1} style={{ fontFamily: serif(600), fontSize: 18, color: T.ink, marginTop: 4 }}>
+                  {nextAppt.service_name}
+                </Text>
+                <Text numberOfLines={1} style={{ fontFamily: sans(600), fontSize: 12, color: T.body, marginTop: 3 }}>
+                  {fmtTime(nextAppt.starts_at)}{nextAppt.stylist_name ? ` · con ${nextAppt.stylist_name}` : ''}
+                </Text>
+              </View>
+              <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: T.soft, alignItems: 'center', justifyContent: 'center' }}>
+                <Svg width={7} height={12} viewBox="0 0 7 12">
+                  <Path d="M1 1l5 5-5 5" stroke={T.roseDeep} strokeWidth={1.6} fill="none" strokeLinecap="round" />
+                </Svg>
+              </View>
+            </View>
+          </Glass>
+        </Pressable>
+      )}
 
       {/* hero card */}
       <View style={{ marginTop: 24, marginHorizontal: 20, borderRadius: 24, overflow: 'hidden', position: 'relative', boxShadow: '0 16px 34px rgba(20,45,35,0.16)' as any }}>
