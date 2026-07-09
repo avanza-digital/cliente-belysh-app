@@ -4,7 +4,7 @@ import Svg, { Path, Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   T, serif, sans,
-  Scroll, Photo, Eyebrow, Petal, Glass, EmeraldCard, EmeraldGradient,
+  Scroll, Photo, Eyebrow, Petal, Glass, EmeraldCard, EmeraldGradient, Stars,
 } from '../ui';
 import { BELYSH, Service } from '../data';
 import { useAuth } from '../api/auth';
@@ -79,6 +79,8 @@ export default function Inicio({ openService, go }: { openService: (s: Service) 
     return () => { ok = false; };
   }, [user?.id]);
   const pop = B.SERVICES.filter((s) => s.popular);
+  const promo = B.PROMOS[0];
+  const promoSvc = promo ? B.SERVICES.find((x) => x.id === promo.serviceId) : undefined;
   const cats = [
     { name: 'Corte', tint: 'rose' },
     { name: 'Color', tint: 'emerald' },
@@ -175,6 +177,36 @@ export default function Inicio({ openService, go }: { openService: (s: Service) 
         })}
       </ScrollView>
 
+      {/* promo destacada (patrón "Featured" de Sephora): la primera promo como banner editorial */}
+      {promo && promoSvc && (
+        <Pressable onPress={() => openService(promoSvc)} accessibilityRole="button"
+          accessibilityLabel={`Promoción: ${promo.title}, ${money(promo.now)}`}>
+          <View style={{ marginTop: 24, marginHorizontal: 20, borderRadius: 24, overflow: 'hidden', boxShadow: '0 16px 34px rgba(20,45,35,0.16)' as any }}>
+            <Photo tone={promo.tone} tag={promo.title} img={promo.img} h={170} r={18} />
+            <LinearGradient colors={['rgba(8,40,30,0.72)', 'rgba(8,40,30,0.12)']}
+              start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }}
+              style={StyleSheet.absoluteFill} pointerEvents="none" />
+            <View style={{ position: 'absolute', left: 20, right: 20, top: 0, bottom: 0, justifyContent: 'center' }}>
+              <View style={{ alignSelf: 'flex-start', borderRadius: 999, overflow: 'hidden' }}>
+                <LinearGradient colors={['#F3E0A6', '#C9A063']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={{ paddingVertical: 5, paddingHorizontal: 12 }}>
+                  <Text style={{ fontFamily: sans(800), fontSize: 10, letterSpacing: 1.2, color: '#0A3B2C', textTransform: 'uppercase' }}>
+                    {promo.badge} · {promo.kind}
+                  </Text>
+                </LinearGradient>
+              </View>
+              <Text style={{ fontFamily: serif(600), fontSize: 24, color: '#fff', marginTop: 10, lineHeight: 26, maxWidth: 250 }}>
+                {promo.title}
+              </Text>
+              <Text style={{ fontFamily: sans(700), fontSize: 14, color: '#fff', marginTop: 8 }}>
+                {money(promo.now)}{'  '}
+                <Text style={{ fontFamily: sans(600), fontSize: 12, color: 'rgba(255,255,255,0.65)', textDecorationLine: 'line-through' }}>{money(promo.was)}</Text>
+              </Text>
+            </View>
+          </View>
+        </Pressable>
+      )}
+
       {/* petal divider */}
       <View style={{ paddingTop: 26, paddingHorizontal: 20, paddingBottom: 2 }}>
         <Petal />
@@ -199,6 +231,47 @@ export default function Inicio({ openService, go }: { openService: (s: Service) 
               <Text style={{ fontFamily: sans(700), fontSize: 12.5, color: T.rose, marginTop: 5, paddingHorizontal: 4, paddingBottom: 6 }}>{`${money(s.price)} · ${s.min} min`}</Text>
             </Glass>
           </Pressable>
+        ))}
+      </ScrollView>
+
+      {/* nuestro equipo (patrón Fresha: los proveedores generan confianza) */}
+      <View style={{ paddingTop: 28, paddingHorizontal: 20, paddingBottom: 4 }}>
+        <Text style={{ fontFamily: serif(600), fontSize: 24, color: T.ink }}>Nuestro equipo</Text>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 12, paddingTop: 10, paddingHorizontal: 20, paddingBottom: 4 }}>
+        {B.STYLISTS.map((p) => (
+          <Glass key={p.id} radius={20} style={{ width: 128, alignItems: 'center', paddingVertical: 16, paddingHorizontal: 10, boxShadow: '0 8px 20px rgba(20,45,35,0.07)' as any }}>
+            <View style={{ width: 56, height: 56, borderRadius: 28, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(15,107,80,0.28), 0 0 0 2px rgba(201,160,99,0.45)' as any }}>
+              <EmeraldGradient style={StyleSheet.absoluteFill} />
+              <Text style={{ fontFamily: serif(600), fontSize: 19, color: '#fff' }}>{p.initials}</Text>
+            </View>
+            <Text style={{ fontFamily: sans(700), fontSize: 12.5, color: T.ink, marginTop: 10 }}>{p.name}</Text>
+            <Text numberOfLines={1} style={{ fontFamily: sans(500), fontSize: 10, color: T.muted, marginTop: 3 }}>{p.role}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
+              <Text style={{ color: '#C9A063', fontSize: 11 }}>★</Text>
+              <Text style={{ fontFamily: sans(700), fontSize: 11, color: T.goldText, fontVariant: ['tabular-nums'] }}>{p.rating.toFixed(1)}</Text>
+            </View>
+          </Glass>
+        ))}
+      </ScrollView>
+
+      {/* reseñas (social proof editorial) */}
+      <View style={{ paddingTop: 28, paddingHorizontal: 20, paddingBottom: 4 }}>
+        <Text style={{ fontFamily: serif(600), fontSize: 24, color: T.ink }}>Ellas ya se consintieron</Text>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 14, paddingTop: 10, paddingHorizontal: 20, paddingBottom: 4 }}>
+        {B.REVIEWS.map((r) => (
+          <Glass key={r.id} radius={22} style={{ width: 260, padding: 18, boxShadow: '0 8px 22px rgba(20,45,35,0.08)' as any }}>
+            <Stars n={r.stars} s={11} />
+            <Text style={{ fontFamily: serif(500, true), fontSize: 15.5, color: T.ink, marginTop: 10, lineHeight: 21 }}>
+              “{r.text}”
+            </Text>
+            <Text style={{ fontFamily: sans(700), fontSize: 11.5, color: T.muted, marginTop: 12 }}>
+              {r.name} <Text style={{ fontFamily: sans(600), color: T.goldText }}>· {r.service}</Text>
+            </Text>
+          </Glass>
         ))}
       </ScrollView>
 
