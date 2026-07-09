@@ -5,7 +5,7 @@ import { BlurView } from 'expo-blur';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
-import { T, serif, sans, RES } from '../ui';
+import { T, G, serif, sans, RES } from '../ui';
 import { GUIDES } from '../data';
 import { useAuth } from '../api/auth';
 import { traducir } from '../lib/errors';
@@ -114,7 +114,7 @@ const GOOGLE_ENABLED = false;
 
 export default function Welcome() {
   const { signIn, signUp, signInGuest, signInWithGoogle, resetPassword } = useAuth();
-  const [phase, setPhase] = useState<'splash' | 'guide' | 'auth'>('splash');
+  const [phase, setPhase] = useState<'splash' | 'welcome' | 'guide' | 'auth'>('splash');
   const [step, setStep] = useState(0);
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [name, setName] = useState('');
@@ -195,7 +195,7 @@ export default function Welcome() {
 
   useEffect(() => {
     if (phase === 'splash') {
-      const t = setTimeout(() => setPhase('guide'), 4000);
+      const t = setTimeout(() => setPhase('welcome'), 2600);
       return () => clearTimeout(t);
     }
   }, [phase]);
@@ -203,12 +203,12 @@ export default function Welcome() {
   // Botón atrás de hardware (Android): retrocede entre fases en vez de cerrar la app.
   useEffect(() => {
     const onBack = () => {
-      if (phase === 'auth') { setPhase('guide'); return true; }
+      if (phase === 'auth') { setPhase('welcome'); return true; }
       if (phase === 'guide') {
         if (step > 0) { setStep(step - 1); return true; }
-        setPhase('splash'); return true;
+        setPhase('welcome'); return true;
       }
-      return false; // splash: dejar que el SO cierre la app
+      return false; // splash/welcome: dejar que el SO cierre la app
     };
     const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
     return () => sub.remove();
@@ -252,6 +252,77 @@ export default function Welcome() {
       </Pressable>
     );
 
+  /* ───────────────────────── WELCOME (hub pre-login) ─────────────────────────
+     Patrón Tesla Robotaxi / Turo: foto editorial full-bleed, marca centrada y
+     CTAs claros abajo — el formulario vive en su propia pantalla, no aquí. */
+  } else if (phase === 'welcome') {
+    content = (
+      <View style={{ flex: 1 }}>
+        <View style={[StyleSheet.absoluteFill, { zIndex: 0 }]} accessibilityElementsHidden={true} importantForAccessibility="no-hide-descendants">
+          <Image source={RES('assets/hair-2.png')} style={StyleSheet.absoluteFill} contentFit="cover"
+            contentPosition={{ top: '18%', left: '50%' }} transition={350} />
+          <LinearGradient
+            colors={['rgba(6,32,23,0.62)', 'rgba(9,34,26,0.1)', 'rgba(9,34,26,0.28)', 'rgba(5,22,16,0.94)']}
+            locations={[0, 0.3, 0.58, 1]}
+            start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
+            style={StyleSheet.absoluteFill} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(11,60,46,0.14)' }]} />
+        </View>
+
+        <View style={{ flex: 1, zIndex: 1, paddingHorizontal: 28 }}>
+          {/* marca arriba */}
+          <View style={{ alignItems: 'center', paddingTop: 84 }}>
+            <Image source={RES('assets/belysh-mark-gold.png')} style={{ width: 64, height: 46 }} contentFit="contain" />
+            <Image source={RES('assets/belysh-wordmark-gold.png')} style={{ width: 148, height: 28, marginTop: 12 }} contentFit="contain" />
+          </View>
+
+          <View style={{ flex: 1 }} />
+
+          {/* claim + CTAs */}
+          <View style={{ paddingBottom: 54 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <View style={{ width: 22, height: 1, backgroundColor: '#D9C18C' }} />
+              <Text style={{ fontFamily: sans(700), fontSize: 10.5, letterSpacing: 2.6, textTransform: 'uppercase', color: '#D9C18C' }}>
+                Salón de belleza · Lima
+              </Text>
+            </View>
+            <Text style={{ fontFamily: serif(500), fontSize: 38, color: '#fff', lineHeight: 40 }}>
+              Tu momento de{'\n'}<Text style={{ fontFamily: serif(500, true) }}>consentirte</Text> empieza aquí
+            </Text>
+
+            <Pressable onPress={() => { setMode('signup'); setPhase('auth'); }} disabled={busy}
+              accessibilityRole="button" accessibilityState={{ disabled: busy }}
+              style={({ pressed }) => ({ marginTop: 28, borderRadius: 999, overflow: 'hidden', opacity: pressed ? 0.92 : 1, transform: [{ scale: pressed ? 0.98 : 1 }], boxShadow: '0 18px 36px rgba(0,0,0,0.35)' as any })}>
+              <LinearGradient colors={G.goldColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={{ paddingVertical: 17, alignItems: 'center' }}>
+                <Text style={{ fontFamily: sans(700), fontSize: 15, letterSpacing: 0.4, color: '#0A3B2C' }}>Crear cuenta</Text>
+              </LinearGradient>
+            </Pressable>
+
+            <Pressable onPress={() => { setMode('signin'); setPhase('auth'); }} disabled={busy}
+              accessibilityRole="button" accessibilityState={{ disabled: busy }}
+              style={({ pressed }) => ({
+                marginTop: 12, borderRadius: 999, paddingVertical: 16, alignItems: 'center',
+                borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', backgroundColor: 'rgba(255,255,255,0.12)',
+                opacity: pressed ? 0.9 : 1,
+              })}>
+              <Text style={{ fontFamily: sans(600), fontSize: 14.5, color: '#fff' }}>Iniciar sesión</Text>
+            </Pressable>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 18, marginTop: 20 }}>
+              <Pressable onPress={guest} disabled={busy} accessibilityRole="button" accessibilityState={{ disabled: busy }} hitSlop={8}>
+                <Text style={{ fontFamily: sans(600), fontSize: 12.5, color: 'rgba(255,255,255,0.75)' }}>Explorar como invitada</Text>
+              </Pressable>
+              <View style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.4)' }} />
+              <Pressable onPress={() => { setStep(0); setPhase('guide'); }} disabled={busy} accessibilityRole="button" hitSlop={8}>
+                <Text style={{ fontFamily: sans(600), fontSize: 12.5, color: 'rgba(255,255,255,0.75)' }}>Conoce Belysh</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+
   /* ───────────────────────── GUIDE ───────────────────────── */
   } else if (phase === 'guide') {
     const g = guides[step];
@@ -260,7 +331,7 @@ export default function Welcome() {
         <PhotoBg img={g.img} pos={g.pos} />
         <View style={{ flex: 1, zIndex: 1 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingTop: 60, paddingHorizontal: 24 }}>
-            <Pressable onPress={() => setPhase('auth')}
+            <Pressable onPress={() => setPhase('welcome')}
               accessibilityRole="button" accessibilityLabel="Saltar introducción"
               style={{ backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 999, paddingVertical: 8, paddingHorizontal: 16 }}>
               <Text style={{ fontFamily: sans(600), fontSize: 12.5, letterSpacing: 0.4, color: 'rgba(255,255,255,0.92)' }}>Saltar</Text>
@@ -295,7 +366,7 @@ export default function Welcome() {
                 ))}
               </View>
               <Pressable
-                onPress={() => (step < guides.length - 1 ? setStep(step + 1) : setPhase('auth'))}
+                onPress={() => (step < guides.length - 1 ? setStep(step + 1) : (setMode('signup'), setPhase('auth')))}
                 style={{
                   height: 56, paddingHorizontal: 26, borderRadius: 999, backgroundColor: '#FBF8F1',
                   flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -327,6 +398,13 @@ export default function Welcome() {
             style={StyleSheet.absoluteFill} />
           <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(11,60,46,0.16)' }]} />
         </View>
+
+        {/* volver al hub de bienvenida */}
+        <Pressable onPress={() => setPhase('welcome')}
+          accessibilityRole="button" accessibilityLabel="Volver"
+          style={{ position: 'absolute', top: 62, left: 22, zIndex: 2, width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' }}>
+          <Svg width={9} height={15} viewBox="0 0 9 14"><Path d="M8 1L2 7l6 6" stroke="#fff" strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" /></Svg>
+        </Pressable>
 
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, zIndex: 1 }}>
         <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 22, paddingTop: 40, paddingBottom: 30 }}
@@ -390,36 +468,41 @@ export default function Welcome() {
               <Pressable onPress={submit} disabled={busy}
                 accessibilityRole="button"
                 accessibilityState={{ disabled: busy }}
-                style={{
-                  borderRadius: 999, paddingVertical: 17, marginTop: 20, backgroundColor: '#FBF8F1',
-                  alignItems: 'center', opacity: busy ? 0.6 : 1, boxShadow: '0 16px 30px rgba(0,0,0,0.28)' as any,
-                }}>
-                <Text style={{ fontFamily: sans(700), fontSize: 15, letterSpacing: 0.3, color: T.roseDeep }}>
-                  {busy ? 'Un momento…' : isSignup ? 'Crear cuenta' : 'Entrar'}
-                </Text>
+                style={({ pressed }) => ({
+                  borderRadius: 999, overflow: 'hidden', marginTop: 20,
+                  opacity: busy ? 0.6 : pressed ? 0.92 : 1, boxShadow: '0 16px 30px rgba(0,0,0,0.28)' as any,
+                })}>
+                <LinearGradient colors={G.goldColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={{ paddingVertical: 17, alignItems: 'center' }}>
+                  <Text style={{ fontFamily: sans(700), fontSize: 15, letterSpacing: 0.3, color: '#0A3B2C' }}>
+                    {busy ? 'Un momento…' : isSignup ? 'Crear cuenta' : 'Entrar'}
+                  </Text>
+                </LinearGradient>
               </Pressable>
 
-              {/* divisor */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 20, marginBottom: 14 }}>
-                <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.24)' }} />
-                <Text style={{ fontFamily: sans(600), fontSize: 10.5, letterSpacing: 1.5, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>
-                  o continúa con
-                </Text>
-                <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.24)' }} />
-              </View>
-
-              {/* social — solo Google (planeado); el código está listo, se activa al configurar credenciales */}
-              <Pressable disabled={busy} onPress={handleGoogle}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: busy }}
-                style={{
-                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)', borderRadius: 999, paddingVertical: 14,
-                  backgroundColor: 'rgba(255,255,255,0.12)',
-                }}>
-                <GoogleIcon />
-                <Text style={{ fontFamily: sans(600), fontSize: 13.5, color: '#fff' }}>Continuar con Google</Text>
-              </Pressable>
+              {/* social — Google se muestra solo al configurar credenciales (GOOGLE_ENABLED) */}
+              {GOOGLE_ENABLED && (
+                <>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 20, marginBottom: 14 }}>
+                    <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.24)' }} />
+                    <Text style={{ fontFamily: sans(600), fontSize: 10.5, letterSpacing: 1.5, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>
+                      o continúa con
+                    </Text>
+                    <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.24)' }} />
+                  </View>
+                  <Pressable disabled={busy} onPress={handleGoogle}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: busy }}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)', borderRadius: 999, paddingVertical: 14,
+                      backgroundColor: 'rgba(255,255,255,0.12)',
+                    }}>
+                    <GoogleIcon />
+                    <Text style={{ fontFamily: sans(600), fontSize: 13.5, color: '#fff' }}>Continuar con Google</Text>
+                  </Pressable>
+                </>
+              )}
             </View>
           </View>
 
