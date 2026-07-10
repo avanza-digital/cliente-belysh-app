@@ -67,27 +67,33 @@ export default function Inicio({ openService, go }: { openService: (s: Service) 
   // Sin cita próxima: "repetir el último ritual" (Book again de Fresha) o, para
   // invitadas sin historial, el atajo para guardar su cuenta. `apptChecked` evita
   // mostrar esos fallbacks antes de saber si hay cita (sin parpadeo).
-  const [nextAppt, setNextAppt] = useState<Appointment | null>(null);
-  const [lastDone, setLastDone] = useState<Appointment | null>(null);
-  const [apptChecked, setApptChecked] = useState(false);
+  const appointmentOwner = user?.id ?? null;
+  const [appointmentSnapshot, setAppointmentSnapshot] = useState<{
+    owner: string | null;
+    next: Appointment | null;
+    last: Appointment | null;
+  }>({ owner: null, next: null, last: null });
+  const snapshotIsCurrent = appointmentSnapshot.owner === appointmentOwner;
+  const nextAppt = snapshotIsCurrent ? appointmentSnapshot.next : null;
+  const lastDone = snapshotIsCurrent ? appointmentSnapshot.last : null;
+  const apptChecked = !appointmentOwner || snapshotIsCurrent;
   useEffect(() => {
     let ok = true;
-    setApptChecked(false);
-    if (!user?.id) { setNextAppt(null); setLastDone(null); setApptChecked(true); return; }
+    if (!appointmentOwner) return;
     listMyAppointments()
       .then((rows) => {
         if (!ok) return;
         const now = Date.now();
         const up = rows.find((a) => a.status !== 'cancelada' && a.status !== 'completada' && !!a.starts_at && new Date(a.starts_at).getTime() > now);
-        setNextAppt(up ?? null);
         // rows viene ascendente por starts_at → el último pasado no cancelado es el más reciente.
         const past = [...rows].reverse().find((a) => a.status !== 'cancelada' && !!a.starts_at && new Date(a.starts_at).getTime() <= now);
-        setLastDone(past ?? null);
+        setAppointmentSnapshot({ owner: appointmentOwner, next: up ?? null, last: past ?? null });
       })
-      .catch(() => {})
-      .finally(() => { if (ok) setApptChecked(true); });
+      .catch(() => {
+        if (ok) setAppointmentSnapshot({ owner: appointmentOwner, next: null, last: null });
+      });
     return () => { ok = false; };
-  }, [user?.id]);
+  }, [appointmentOwner]);
   const isGuest = !!user?.is_anonymous;
   const rebookSvc = lastDone
     ? B.SERVICES.find((x) => x.id === lastDone.service_id) || B.SERVICES.find((x) => x.name === lastDone.service_name)

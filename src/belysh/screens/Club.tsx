@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
@@ -28,11 +28,19 @@ export default function Club() {
   // NIVEL = consumo pagado 12 meses (soles), fuente de verdad del servidor. Fetch defensivo:
   // ante cualquier error queda en 0 → Member 0%, que es el estado correcto sin pagos.
   const [spend, setSpend] = useState(0);
-  const loadSpend = async () => {
-    if (!user?.id) return;
-    try { setSpend(await getClientSpend12m(user.id)); } catch { /* mantiene el último válido */ }
-  };
-  useEffect(() => { loadSpend(); }, [user?.id]);
+  const userId = user?.id;
+  const loadSpend = useCallback(async () => {
+    if (!userId) return;
+    try { setSpend(await getClientSpend12m(userId)); } catch { /* mantiene el último válido */ }
+  }, [userId]);
+  useEffect(() => {
+    if (!userId) return;
+    let alive = true;
+    getClientSpend12m(userId)
+      .then((value) => { if (alive) setSpend(value); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [userId]);
   const refresh = async () => {
     setRefreshing(true);
     try { await Promise.all([refreshProfile(), loadSpend()]); } finally { setRefreshing(false); }

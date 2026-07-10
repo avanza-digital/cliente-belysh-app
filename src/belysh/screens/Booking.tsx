@@ -8,6 +8,7 @@ import {
 import { BELYSH, Service, BookingState } from '../data';
 import { takenTimes, fullDays } from '../api/appointments';
 import { todayLima, ymd } from '../lib/date';
+import { applyBookingPatch } from '../lib/booking';
 const B = BELYSH;
 
 const DAYS_HORIZON = 42; // 6 semanas reservables en la tira de días
@@ -26,16 +27,27 @@ function nextDays(n: number): DayCell[] {
 }
 
 export default function Booking({ s, st, setSt, onNext }: { s: Service; st: BookingState; setSt: React.Dispatch<React.SetStateAction<BookingState>>; onNext: () => void }) {
-  const ready = st.date && st.time && st.stylist;
-  const [takenList, setTakenList] = useState<string[]>([]);
-  const [loadErr, setLoadErr] = useState(false);
-  const [loadingTimes, setLoadingTimes] = useState(false);
-  const [fullDaysList, setFullDaysList] = useState<string[]>([]);
+  const [fullDaysSnapshot, setFullDaysSnapshot] = useState<{ stylist: string; days: string[] } | null>(null);
+  const availabilityKey = st.date && st.stylist ? `${st.date}|${st.stylist}` : null;
+  const [availability, setAvailability] = useState<{
+    key: string;
+    taken: string[];
+    error: boolean;
+  } | null>(null);
+  const fullDaysList = st.stylist && fullDaysSnapshot?.stylist === st.stylist ? fullDaysSnapshot.days : [];
+  const currentAvailability = availabilityKey && availability?.key === availabilityKey ? availability : null;
+  const takenList = currentAvailability?.taken ?? [];
+  const loadErr = currentAvailability?.error ?? false;
+  const loadingTimes = !!availabilityKey && !currentAvailability;
+  const ready = !!(
+    st.date && st.time && st.stylist && currentAvailability &&
+    !currentAvailability.error && !takenList.includes(st.time)
+  );
 
   // Selección con feedback háptico sutil (no-op si el dispositivo no lo soporta).
   const pick = (patch: Partial<BookingState>) => {
     Haptics.selectionAsync().catch(() => {});
-    setSt((o: any) => ({ ...o, ...patch }));
+    setSt((current) => applyBookingPatch(current, patch));
   };
 
   const days = useMemo(() => nextDays(DAYS_HORIZON), []);
@@ -48,35 +60,31 @@ export default function Booking({ s, st, setSt, onNext }: { s: Service; st: Book
   // Días completamente llenos para la estilista en las próximas 6 semanas.
   useEffect(() => {
     let alive = true;
-    if (!st.stylist) { setFullDaysList([]); return; }
-    fullDays(st.stylist, days[0].ds, days[days.length - 1].ds)
-      .then((arr) => { if (alive) setFullDaysList(arr); })
-      .catch(() => { if (alive) setFullDaysList([]); });
+    const stylist = st.stylist;
+    if (!stylist) return;
+    fullDays(stylist, days[0].ds, days[days.length - 1].ds)
+      .then((arr) => { if (alive) setFullDaysSnapshot({ stylist, days: arr }); })
+      .catch(() => { if (alive) setFullDaysSnapshot({ stylist, days: [] }); });
     return () => { alive = false; };
   }, [st.stylist, days]);
 
   // Cupos por hora ya reservados para ese día + estilista (disponibilidad real).
   useEffect(() => {
     let alive = true;
-    setLoadErr(false);
-    if (st.date && st.stylist) {
-      setTakenList([]); // limpia disponibilidad anterior mientras carga
-      setLoadingTimes(true);
-      takenTimes(st.date, st.stylist)
-        .then((arr) => {
-          if (!alive) return;
-          setTakenList(arr);
-          // updater funcional: lee la hora ACTUAL (sin closure obsoleto)
-          setSt((o: any) => (o.time && arr.includes(o.time) ? { ...o, time: null } : o));
-        })
-        .catch(() => { if (alive) setLoadErr(true); })
-        .finally(() => { if (alive) setLoadingTimes(false); });
-    } else {
-      setTakenList([]);
-      setLoadingTimes(false);
-    }
+    const date = st.date;
+    const stylist = st.stylist;
+    const key = availabilityKey;
+    if (!date || !stylist || !key) return;
+    takenTimes(date, stylist)
+      .then((arr) => {
+        if (!alive) return;
+        setAvailability({ key, taken: arr, error: false });
+        // updater funcional: lee la hora ACTUAL (sin closure obsoleto)
+        setSt((o: any) => (o.time && arr.includes(o.time) ? { ...o, time: null } : o));
+      })
+      .catch(() => { if (alive) setAvailability({ key, taken: [], error: true }); });
     return () => { alive = false; };
-  }, [st.date, st.stylist, setSt]);
+  }, [availabilityKey, st.date, st.stylist, setSt]);
 
   const dayFull = st.stylist && st.date && !loadErr && B.TIMES.length > 0 && B.TIMES.every((t: string) => takenList.includes(t));
 

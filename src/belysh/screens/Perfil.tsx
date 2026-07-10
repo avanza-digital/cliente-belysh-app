@@ -144,9 +144,12 @@ export default function Perfil({ onReschedule, onRebook }: { onReschedule: (a: A
 
   useEffect(() => {
     let alive = true;
-    load(() => alive);
+    listMyAppointments()
+      .then((rows) => { if (alive) setAppts(rows); })
+      .catch(() => { if (alive) setError(true); })
+      .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [load]);
+  }, []);
 
   const refresh = async () => {
     setRefreshing(true);

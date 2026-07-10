@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Alert, BackHandler } from 'react-native';
-import Animated, { FadeIn, FadeInLeft, FadeInRight, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppBackground, TopBar, TabBar } from './ui';
 import { BELYSH, BookingState } from './data';
+import { PageCarousel, PageDirection } from './motion';
 import { useAuth } from './api/auth';
 import { createAppointment, reschedule } from './api/appointments';
 import { Appointment } from './types/db';
@@ -25,6 +25,7 @@ import Notifs from './screens/Notifs';
 
 const B = BELYSH;
 const EMPTY_ST: BookingState = { stylist: null, date: null, time: null, rescheduleId: null };
+const TAB_ORDER = ['inicio', 'servicios', 'promos', 'club', 'perfil'];
 
 export default function BelyshApp() {
   const insets = useSafeAreaInsets();
@@ -36,39 +37,71 @@ export default function BelyshApp() {
   const [lastAppt, setLastAppt] = useState<Appointment | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [unread, setUnread] = useState(0);
+  const navigationLocked = useRef(false);
 
   const refreshUnread = useCallback(() => { countUnread().then(setUnread).catch(() => {}); }, []);
-  useEffect(() => { if (session) refreshUnread(); else setUnread(0); }, [session, refreshUnread]);
+  // Al cerrar sesión esta pantalla deja de renderizarse; la siguiente sesión
+  // vuelve a consultar el contador, así que no hace falta un setState síncrono.
+  useEffect(() => { if (session) refreshUnread(); }, [session, refreshUnread]);
 
-  // Dirección de la última navegación → elige la animación de entrada del cuerpo:
-  // 'fwd' avanza en un flujo (desliza desde la derecha), 'back' retrocede (desde la
-  // izquierda), 'tab' cambia de pestaña (crossfade). Es estado (no ref) para poder
-  // leerlo en render; se batcha con el setScreen/setTab del mismo evento.
-  const [navDir, setNavDir] = useState<'fwd' | 'back' | 'tab'>('tab');
-  const push = useCallback((s: string) => { setNavDir('fwd'); setScreen(s); }, []);
+  const [navDir, setNavDir] = useState<PageDirection>('forward');
+  const push = useCallback((s: string) => {
+    if (navigationLocked.current) return;
+    navigationLocked.current = true;
+    setNavDir('forward');
+    setScreen(s);
+  }, []);
+  const finishNavigation = useCallback(() => { navigationLocked.current = false; }, []);
 
-  const openNotifs = useCallback(() => { push('notifs'); markNotifsSeen(); setUnread(0); }, [push]);
+  const openNotifs = useCallback(() => {
+    if (navigationLocked.current) return;
+    push('notifs');
+    markNotifsSeen();
+    setUnread(0);
+  }, [push]);
   // Abrir un servicio limpia el estado de reserva (no arrastra estilista/día/hora de una reserva abandonada).
-  const openService = useCallback((s: any) => { setSel(s); setSt(EMPTY_ST); push('detail'); }, [push]);
+  const openService = useCallback((s: any) => {
+    if (navigationLocked.current) return;
+    setSel(s);
+    setSt(EMPTY_ST);
+    push('detail');
+  }, [push]);
   const back = useCallback(() => {
-    setNavDir('back');
+    if (navigationLocked.current) return;
+    navigationLocked.current = true;
+    setNavDir('backward');
     if (screen === 'summary') setScreen('booking');
     else if (screen === 'booking') setScreen('detail');
     else setScreen(null);
   }, [screen]);
-  const goTab = useCallback((t: string) => { setNavDir('tab'); setScreen(null); setTab(t); }, []);
-  const reset = useCallback(() => { setNavDir('tab'); setScreen(null); setSt(EMPTY_ST); setTab('inicio'); }, []);
+  const goTab = useCallback((t: string) => {
+    if (navigationLocked.current || (!screen && t === tab)) return;
+    navigationLocked.current = true;
+    const from = TAB_ORDER.indexOf(tab);
+    const to = TAB_ORDER.indexOf(t);
+    setNavDir(to < from ? 'backward' : 'forward');
+    setScreen(null);
+    setTab(t);
+  }, [screen, tab]);
+  const reset = useCallback(() => {
+    if (navigationLocked.current) return;
+    navigationLocked.current = true;
+    setNavDir('backward');
+    setScreen(null);
+    setSt(EMPTY_ST);
+    setTab('inicio');
+  }, []);
 
   // Botón atrás de hardware (Android): retrocede dentro del flujo en vez de cerrar la app.
   useEffect(() => {
     const onBack = () => {
       if (screen) { back(); return true; }
-      if (tab !== 'inicio') { setTab('inicio'); return true; }
+      if (tab !== 'inicio') { goTab('inicio'); return true; }
       return false; // en inicio sin sub-pantalla: dejar que el SO cierre la app
     };
     const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
     return () => sub.remove();
-  }, [screen, tab, back]);
+  }, [screen, tab, back, goTab]);
 
   // Confirma la reserva (o el reagendado) en Supabase, luego va a "éxito".
   const confirmBooking = useCallback(async () => {
@@ -136,8 +169,11 @@ export default function BelyshApp() {
     }}
   />;
 
-  return (
-    <AppBackground>
+  // El encabezado pertenece a cada página del carrusel. Así una pantalla con
+  // logo y otra con botón de regreso viajan juntas, sin que el contenido salte
+  // al cambiar entre un header en flujo y uno superpuesto sobre el hero.
+  const page = (
+    <View style={{ flex: 1, minHeight: 0 }}>
       {screen !== 'success' && (
         lightTop ? (
           <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}>
@@ -149,17 +185,16 @@ export default function BelyshApp() {
           </View>
         )
       )}
+      <View style={{ flex: 1, minHeight: 0, zIndex: 1 }}>{body}</View>
+    </View>
+  );
+
+  return (
+    <AppBackground>
       <View style={{ flex: 1, minHeight: 0, zIndex: 1 }}>
-        {/* El key remonta el cuerpo al navegar; entering según dirección, salida en fade corto.
-            El chrome (TopBar/TabBar) queda estático: solo transiciona el contenido. */}
-        <Animated.View
-          key={screen ?? `tab:${tab}`}
-          entering={navDir === 'fwd' ? FadeInRight.duration(280) : navDir === 'back' ? FadeInLeft.duration(280) : FadeIn.duration(220)}
-          exiting={FadeOut.duration(140)}
-          style={{ flex: 1 }}
-        >
-          {body}
-        </Animated.View>
+        <PageCarousel sceneKey={screen ?? `tab:${tab}`} direction={navDir} onTransitionEnd={finishNavigation}>
+          {page}
+        </PageCarousel>
       </View>
       {!hideTabs && <TabBar tab={tab} go={goTab} bottomInset={insets.bottom} />}
     </AppBackground>

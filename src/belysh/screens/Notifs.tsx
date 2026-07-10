@@ -27,7 +27,14 @@ export default function Notifs() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  // La carga inicial parte de `loading: true`; consultar directamente evita
+  // un setState síncrono redundante al montar la pantalla.
+  useEffect(() => {
+    listNotifications()
+      .then((items) => { if (alive.current) setNotifs(items); })
+      .catch(() => { if (alive.current) setError(true); })
+      .finally(() => { if (alive.current) setLoading(false); });
+  }, []);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);

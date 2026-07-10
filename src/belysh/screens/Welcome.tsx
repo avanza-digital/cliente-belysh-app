@@ -5,10 +5,10 @@ import { BlurView } from 'expo-blur';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { T, G, serif, sans, RES } from '../ui';
 import { GUIDES } from '../data';
+import { PageCarousel, PageDirection } from '../motion';
 import { useAuth } from '../api/auth';
 import { traducir } from '../lib/errors';
 
@@ -118,6 +118,7 @@ export default function Welcome() {
   const { signIn, signUp, signInGuest, signInWithGoogle, resetPassword } = useAuth();
   const [phase, setPhase] = useState<'splash' | 'welcome' | 'guide' | 'auth'>('splash');
   const [step, setStep] = useState(0);
+  const [pageDirection, setPageDirection] = useState<PageDirection>('forward');
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -197,7 +198,7 @@ export default function Welcome() {
 
   useEffect(() => {
     if (phase === 'splash') {
-      const t = setTimeout(() => setPhase('welcome'), 2600);
+      const t = setTimeout(() => { setPageDirection('forward'); setPhase('welcome'); }, 2600);
       return () => clearTimeout(t);
     }
   }, [phase]);
@@ -205,8 +206,9 @@ export default function Welcome() {
   // Botón atrás de hardware (Android): retrocede entre fases en vez de cerrar la app.
   useEffect(() => {
     const onBack = () => {
-      if (phase === 'auth') { setPhase('welcome'); return true; }
+      if (phase === 'auth') { setPageDirection('backward'); setPhase('welcome'); return true; }
       if (phase === 'guide') {
+        setPageDirection('backward');
         if (step > 0) { setStep(step - 1); return true; }
         setPhase('welcome'); return true;
       }
@@ -223,7 +225,7 @@ export default function Welcome() {
   /* ───────────────────────── SPLASH ───────────────────────── */
   if (phase === 'splash') {
     content = (
-      <Pressable onPress={() => setPhase('guide')} style={{ flex: 1, overflow: 'hidden', backgroundColor: '#06231A' }}>
+      <Pressable onPress={() => { setPageDirection('forward'); setPhase('guide'); }} style={{ flex: 1, overflow: 'hidden', backgroundColor: '#06231A' }}>
         <Image source={RES('assets/hair-1.png')} style={StyleSheet.absoluteFill} contentFit="cover"
           contentPosition={{ top: '30%', left: '50%' }} transition={250}
           accessibilityElementsHidden={true} importantForAccessibility="no-hide-descendants" />
@@ -292,7 +294,7 @@ export default function Welcome() {
               Tu momento de{'\n'}<Text style={{ fontFamily: serif(500, true) }}>consentirte</Text> empieza aquí
             </Text>
 
-            <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); setMode('signup'); setPhase('auth'); }} disabled={busy}
+            <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); setPageDirection('forward'); setMode('signup'); setPhase('auth'); }} disabled={busy}
               accessibilityRole="button" accessibilityState={{ disabled: busy }}
               style={({ pressed }) => ({ marginTop: 28, borderRadius: 999, overflow: 'hidden', opacity: pressed ? 0.92 : 1, transform: [{ scale: pressed ? 0.98 : 1 }], boxShadow: '0 18px 36px rgba(0,0,0,0.35)' as any })}>
               <LinearGradient colors={G.goldColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
@@ -304,7 +306,7 @@ export default function Welcome() {
               </LinearGradient>
             </Pressable>
 
-            <Pressable onPress={() => { setMode('signin'); setPhase('auth'); }} disabled={busy}
+            <Pressable onPress={() => { setPageDirection('forward'); setMode('signin'); setPhase('auth'); }} disabled={busy}
               accessibilityRole="button" accessibilityState={{ disabled: busy }}
               style={({ pressed }) => ({
                 marginTop: 12, borderRadius: 999, paddingVertical: 16, alignItems: 'center',
@@ -319,7 +321,7 @@ export default function Welcome() {
                 <Text style={{ fontFamily: sans(600), fontSize: 12.5, color: 'rgba(255,255,255,0.75)' }}>Explorar como invitada</Text>
               </Pressable>
               <View style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.4)' }} />
-              <Pressable onPress={() => { setStep(0); setPhase('guide'); }} disabled={busy} accessibilityRole="button" hitSlop={8}>
+              <Pressable onPress={() => { setPageDirection('forward'); setStep(0); setPhase('guide'); }} disabled={busy} accessibilityRole="button" hitSlop={8}>
                 <Text style={{ fontFamily: sans(600), fontSize: 12.5, color: 'rgba(255,255,255,0.75)' }}>Conoce Belysh</Text>
               </Pressable>
             </View>
@@ -336,7 +338,7 @@ export default function Welcome() {
         <PhotoBg img={g.img} pos={g.pos} />
         <View style={{ flex: 1, zIndex: 1 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingTop: 60, paddingHorizontal: 24 }}>
-            <Pressable onPress={() => setPhase('welcome')}
+            <Pressable onPress={() => { setPageDirection('backward'); setPhase('welcome'); }}
               accessibilityRole="button" accessibilityLabel="Saltar introducción"
               style={{ backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 999, paddingVertical: 8, paddingHorizontal: 16 }}>
               <Text style={{ fontFamily: sans(600), fontSize: 12.5, letterSpacing: 0.4, color: 'rgba(255,255,255,0.92)' }}>Saltar</Text>
@@ -346,9 +348,7 @@ export default function Welcome() {
           <View style={{ flex: 1 }} />
 
           <View style={{ paddingHorizontal: 30, paddingBottom: 40 }}>
-            {/* Solo el texto se re-anima al cambiar de paso (sin exiting: evita textos superpuestos);
-                la foto de fondo ya hace crossfade vía la prop transition de expo-image. */}
-            <Animated.View key={step} entering={FadeIn.duration(300)}>
+            <View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                 <View style={{ width: 22, height: 1, backgroundColor: '#D9C18C' }} />
                 <Text style={{ fontFamily: sans(700), fontSize: 11, letterSpacing: 2.6, textTransform: 'uppercase', color: '#D9C18C' }}>
@@ -364,18 +364,22 @@ export default function Welcome() {
                 fontFamily: sans(400), fontSize: 14.5, color: 'rgba(255,255,255,0.82)',
                 lineHeight: Math.round(14.5 * 1.6), marginTop: 14, maxWidth: 300,
               }}>{g.text}</Text>
-            </Animated.View>
+            </View>
 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 30 }}>
               <View style={{ flexDirection: 'row', gap: 7, flex: 1, alignItems: 'center' }}>
                 {guides.map((_, i) => (
-                  <Pressable key={i} onPress={() => setStep(i)}
+                  <Pressable key={i} onPress={() => { setPageDirection(i < step ? 'backward' : 'forward'); setStep(i); }}
                     accessibilityRole="button" accessibilityLabel={`Ir al paso ${i + 1}`}
                     style={{ height: 3, flexGrow: i === step ? 2.4 : 1, borderRadius: 999, backgroundColor: i === step ? '#FBF8F1' : 'rgba(255,255,255,0.34)' }} />
                 ))}
               </View>
               <Pressable
-                onPress={() => (step < guides.length - 1 ? setStep(step + 1) : (setMode('signup'), setPhase('auth')))}
+                onPress={() => {
+                  setPageDirection('forward');
+                  if (step < guides.length - 1) setStep(step + 1);
+                  else { setMode('signup'); setPhase('auth'); }
+                }}
                 style={{
                   height: 56, paddingHorizontal: 26, borderRadius: 999, backgroundColor: '#FBF8F1',
                   flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -409,7 +413,7 @@ export default function Welcome() {
         </View>
 
         {/* volver al hub de bienvenida */}
-        <Pressable onPress={() => setPhase('welcome')}
+        <Pressable onPress={() => { setPageDirection('backward'); setPhase('welcome'); }}
           accessibilityRole="button" accessibilityLabel="Volver"
           style={{ position: 'absolute', top: 62, left: 22, zIndex: 2, width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' }}>
           <Svg width={9} height={15} viewBox="0 0 9 14"><Path d="M8 1L2 7l6 6" stroke="#fff" strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" /></Svg>
@@ -544,10 +548,9 @@ export default function Welcome() {
   return (
     <View style={{ flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#0A2A20' }}>
       <StatusBar style="light" />
-      {/* Crossfade entre fases (splash → welcome → guide/auth) sobre el fondo esmeralda oscuro. */}
-      <Animated.View key={phase} entering={FadeIn.duration(420)} exiting={FadeOut.duration(260)} style={{ flex: 1 }}>
+      <PageCarousel sceneKey={phase === 'guide' ? `guide:${step}` : phase} direction={pageDirection}>
         {content}
-      </Animated.View>
+      </PageCarousel>
     </View>
   );
 }
