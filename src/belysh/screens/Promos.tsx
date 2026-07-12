@@ -6,7 +6,7 @@ import {
   Glass, Photo, Eyebrow, GradientText, EmeraldGradient, EmeraldCard, Scroll,
   T, serif, sans,
 } from '../ui';
-import { BELYSH, Service } from '../data';
+import { BELYSH, Promo } from '../data';
 import { money } from '../lib/money';
 const B = BELYSH;
 
@@ -27,7 +27,7 @@ function ReserveBtn({ onPress }: any) {
   );
 }
 
-export default function Promos({ go, openService }: { go: (t: string) => void; openService: (s: Service) => void }) {
+export default function Promos({ go, openPromo }: { go: (t: string) => void; openPromo: (p: Promo) => void }) {
   return (
     <Scroll pb={40}>
       {/* Encabezado */}
@@ -59,8 +59,8 @@ export default function Promos({ go, openService }: { go: (t: string) => void; o
                   <Text style={{ fontFamily: sans(700), fontSize: 14, color: T.muted, textDecorationLine: 'line-through' }}>{money(p.was)}</Text>
                 </View>
                 <ReserveBtn onPress={() => {
-                  const svc = B.SERVICES.find((s) => s.id === p.serviceId);
-                  if (svc && openService) openService(svc);
+                  // la promo entra al flujo con su precio; el servidor lo valida vía promo_id
+                  if (openPromo) openPromo(p);
                   else if (go) go('servicios');
                 }} />
               </View>

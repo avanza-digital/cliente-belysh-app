@@ -65,6 +65,7 @@ export type Database = {
           duration_min: number | null
           id: string
           price: number
+          promo_id: string | null
           service_id: string | null
           service_name: string
           starts_at: string | null
@@ -80,6 +81,7 @@ export type Database = {
           duration_min?: number | null
           id?: string
           price?: number
+          promo_id?: string | null
           service_id?: string | null
           service_name: string
           starts_at?: string | null
@@ -95,6 +97,7 @@ export type Database = {
           duration_min?: number | null
           id?: string
           price?: number
+          promo_id?: string | null
           service_id?: string | null
           service_name?: string
           starts_at?: string | null
@@ -103,7 +106,15 @@ export type Database = {
           stylist_name?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "appointments_promo_id_fkey"
+            columns: ["promo_id"]
+            isOneToOne: false
+            referencedRelation: "promos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       bonus_rules: {
         Row: {
@@ -285,6 +296,41 @@ export type Database = {
         }
         Relationships: []
       }
+      promos: {
+        Row: {
+          active: boolean
+          id: string
+          price: number
+          service_id: string
+          title: string
+          weekday: number | null
+        }
+        Insert: {
+          active?: boolean
+          id: string
+          price: number
+          service_id: string
+          title: string
+          weekday?: number | null
+        }
+        Update: {
+          active?: boolean
+          id?: string
+          price?: number
+          service_id?: string
+          title?: string
+          weekday?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promos_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           birthdate: string | null
@@ -345,6 +391,27 @@ export type Database = {
         }
         Update: {
           slot?: string
+        }
+        Relationships: []
+      }
+      stylists: {
+        Row: {
+          active: boolean
+          id: string
+          name: string
+          role: string | null
+        }
+        Insert: {
+          active?: boolean
+          id: string
+          name: string
+          role?: string | null
+        }
+        Update: {
+          active?: boolean
+          id?: string
+          name?: string
+          role?: string | null
         }
         Relationships: []
       }
@@ -410,6 +477,36 @@ export type Database = {
         }
         Returns: Json
       }
+      create_appointment: {
+        Args: {
+          p_promo_id?: string
+          p_service_id: string
+          p_starts_at: string
+          p_stylist_id: string
+        }
+        Returns: {
+          appt_date: string | null
+          appt_time: string | null
+          created_at: string
+          duration_min: number | null
+          id: string
+          price: number
+          promo_id: string | null
+          service_id: string | null
+          service_name: string
+          starts_at: string | null
+          status: string
+          stylist_id: string | null
+          stylist_name: string | null
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "appointments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       full_days: {
         Args: { p_from: string; p_stylist: string; p_to: string }
         Returns: string[]
@@ -421,7 +518,6 @@ export type Database = {
           p_appointment_id: string
           p_starts_at: string
           p_stylist_id: string
-          p_stylist_name: string
         }
         Returns: {
           appt_date: string | null
@@ -430,6 +526,7 @@ export type Database = {
           duration_min: number | null
           id: string
           price: number
+          promo_id: string | null
           service_id: string | null
           service_name: string
           starts_at: string | null

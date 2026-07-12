@@ -8,8 +8,12 @@ export function traducir(msg?: string): string {
   if (m.includes('reward_not_found')) return 'Esa recompensa ya no está disponible.';
   if (m.includes('forbidden_status') || m.includes('forbidden_field') || m.includes('forbidden') || m.includes('appointment_not_found')) return 'No puedes modificar esta cita.';
   if (m.includes('already_cancelled')) return 'Esta cita ya está cancelada.';
-  if (m.includes('too_late')) return 'Solo puedes reagendar hasta 24 h antes de la cita.';
+  if (m.includes('too_late')) return 'Los cambios solo se permiten hasta 24 h antes de tu cita. Llámanos y te ayudamos.';
   if (m.includes('slot_taken') || m.includes('ocup') || m.includes('23505') || m.includes('duplicate')) return 'Ese horario acaba de ocuparse. Elige otro, por favor.';
+  if (m.includes('service_not_found') || m.includes('promo_not_found')) return 'Este servicio o promoción ya no está disponible.';
+  if (m.includes('stylist_not_found')) return 'Esa estilista ya no está disponible. Elige otra, por favor.';
+  if (m.includes('promo_wrong_day')) return 'Esta promoción solo es válida en su día señalado.';
+  if (m.includes('invalid_slot') || m.includes('past_slot')) return 'Ese horario ya no es válido. Elige otro, por favor.';
   if (m.includes('row-level security') || m.includes('permission')) return 'No tienes permiso para esta acción.';
   if (m.includes('jwt') || m.includes('expired') || m.includes('not authenticated')) return 'Tu sesión expiró. Vuelve a iniciar sesión.';
   if (m.includes('password')) return 'La contraseña debe tener al menos 6 caracteres.';

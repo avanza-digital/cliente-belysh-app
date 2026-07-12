@@ -66,6 +66,16 @@ export default function BelyshApp() {
     setSt(EMPTY_ST);
     push('detail');
   }, [push]);
+  // Una promo viaja como overlay de su servicio base: la UI muestra título/precio/desc
+  // promocionales y el servidor re-deriva el precio real desde la tabla promos (promoId).
+  const openPromo = useCallback((p: any) => {
+    if (navigationLocked.current) return;
+    const svc = B.SERVICES.find((s) => s.id === p.serviceId);
+    if (!svc) return;
+    setSel({ ...svc, name: p.title, price: p.now, desc: p.desc, promoId: p.id });
+    setSt(EMPTY_ST);
+    push('detail');
+  }, [push]);
   const back = useCallback(() => {
     if (navigationLocked.current) return;
     navigationLocked.current = true;
@@ -107,21 +117,20 @@ export default function BelyshApp() {
   const confirmBooking = useCallback(async () => {
     if (submitting) return;
     if (!st.date || !st.time || !st.stylist) return; // guard: el flujo no debería llegar aquí sin estos
+    if (!st.rescheduleId && !sel?.id) return;
     try {
       setSubmitting(true);
-      const stylist = B.STYLISTS.find((p) => p.id === st.stylist);
       let appt;
       if (st.rescheduleId) {
         // Reagendado: mueve la MISMA cita (no duplica, no toca puntos).
         appt = await reschedule({
-          id: st.rescheduleId, date: st.date, time: st.time,
-          stylistId: st.stylist, stylistName: stylist?.name ?? '',
+          id: st.rescheduleId, date: st.date, time: st.time, stylistId: st.stylist,
         });
       } else {
+        // Solo IDs e instante: el servidor deriva precio, nombres y duración.
         appt = await createAppointment({
-          service_id: sel?.id, service_name: sel?.name,
-          stylist_id: st.stylist, stylist_name: stylist?.name,
-          price: sel?.price ?? 0, duration_min: sel?.min,
+          service_id: sel.id, stylist_id: st.stylist,
+          promo_id: sel?.promoId ?? null,
           date: st.date, time: st.time,
         });
       }
@@ -149,7 +158,7 @@ export default function BelyshApp() {
   else if (screen === 'notifs') { body = <Notifs />; showBack = true; hideTabs = true; }
   else if (tab === 'inicio') body = <Inicio openService={openService} go={goTab} />;
   else if (tab === 'servicios') body = <Servicios openService={openService} />;
-  else if (tab === 'promos') body = <Promos go={goTab} openService={openService} />;
+  else if (tab === 'promos') body = <Promos go={goTab} openPromo={openPromo} />;
   else if (tab === 'club') body = <Club />;
   else body = <Perfil
     onReschedule={(a) => {
