@@ -477,6 +477,7 @@ export type Database = {
         }
         Returns: Json
       }
+      delete_account: { Args: never; Returns: undefined }
       create_appointment: {
         Args: {
           p_promo_id?: string

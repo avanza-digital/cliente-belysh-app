@@ -8,6 +8,15 @@ import { Profile } from '../types/db';
 
 WebBrowser.maybeCompleteAuthSession();
 
+// Borra la cuenta y sus datos vía RPC delete_account (perfil, citas y puntos se
+// van en cascada; los pagos confirmados quedan anónimos por retención contable).
+// Tras el borrado la sesión local ya no vale: signOut es best-effort.
+export async function deleteAccount() {
+  const { error } = await supabase.rpc('delete_account');
+  if (error) throw error;
+  try { await supabase.auth.signOut(); } catch {}
+}
+
 type AuthValue = {
   session: Session | null;
   user: User | null;

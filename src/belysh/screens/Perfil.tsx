@@ -5,8 +5,9 @@ import {
   Scroll, Eyebrow, Glass, EmeraldGradient,
   T, serif, sans,
 } from '../ui';
-import { useAuth } from '../api/auth';
+import { useAuth, deleteAccount } from '../api/auth';
 import { listMyAppointments, cancelAppointment } from '../api/appointments';
+import Privacidad from './Privacidad';
 import { cancelReminder } from '../lib/reminders';
 import { traducir } from '../lib/errors';
 import { fmtDate, fmtTime } from '../lib/date';
@@ -129,6 +130,7 @@ export default function Perfil({ onReschedule, onRebook }: { onReschedule: (a: A
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
 
   const load = useCallback(async (isAlive: () => boolean = () => true) => {
     setError(false);
@@ -179,13 +181,36 @@ export default function Perfil({ onReschedule, onRebook }: { onReschedule: (a: A
   // "Visitas" = solo citas realmente completadas (no futuras ni canceladas).
   const visits = appts.filter((a) => a.status === 'completada').length;
 
-  const account = ['Notificaciones y recordatorios', 'Métodos de pago', 'Mis reseñas', 'Ayuda', 'Cerrar sesión'];
+  const account = ['Notificaciones y recordatorios', 'Métodos de pago', 'Mis reseñas', 'Ayuda', 'Política de privacidad', 'Cerrar sesión', 'Eliminar cuenta'];
+  // Doble confirmación (Apple exige que el borrado se inicie en la app y sea inequívoco).
+  const delAccount = () => {
+    Alert.alert('Eliminar cuenta', 'Se borrarán permanentemente tu perfil, tus citas y tus puntos. Esta acción no se puede deshacer.', [
+      { text: 'Conservar mi cuenta', style: 'cancel' },
+      {
+        text: 'Continuar', style: 'destructive',
+        onPress: () => Alert.alert('¿Estás segura?', 'Perderás tus puntos del club y tus citas futuras.', [
+          { text: 'No', style: 'cancel' },
+          {
+            text: 'Sí, eliminar todo', style: 'destructive',
+            onPress: async () => {
+              try { await deleteAccount(); } // al morir la sesión, la app vuelve sola a la bienvenida
+              catch (e: any) { Alert.alert('Ups', traducir(e?.message)); }
+            },
+          },
+        ]),
+      },
+    ]);
+  };
   const onAccount = (item: string) => {
     if (item === 'Cerrar sesión') {
       Alert.alert('Cerrar sesión', '¿Salir de tu cuenta?', [
         { text: 'No', style: 'cancel' },
         { text: 'Salir', style: 'destructive', onPress: () => signOut() },
       ]);
+    } else if (item === 'Política de privacidad') {
+      setShowPrivacy(true);
+    } else if (item === 'Eliminar cuenta') {
+      delAccount();
     } else {
       Alert.alert('Próximamente', 'Pronto disponible.');
     }
@@ -307,13 +332,15 @@ export default function Perfil({ onReschedule, onRebook }: { onReschedule: (a: A
               borderBottomWidth: i < arr.length - 1 ? 1 : 0, borderBottomColor: T.line,
             }}
           >
-            <Text style={{ fontFamily: sans(700), fontSize: 14.5, color: x === 'Cerrar sesión' ? T.roseDeep : T.ink }}>{x}</Text>
+            <Text style={{ fontFamily: sans(700), fontSize: 14.5, color: x === 'Eliminar cuenta' ? '#B5562F' : x === 'Cerrar sesión' ? T.roseDeep : T.ink }}>{x}</Text>
             <Svg width={7} height={12} viewBox="0 0 7 12">
               <Path d="M1 1l5 5-5 5" stroke={T.muted} strokeWidth={1.5} fill="none" strokeLinecap="round" />
             </Svg>
           </Pressable>
         ))}
       </Glass>
+
+      <Privacidad visible={showPrivacy} onClose={() => setShowPrivacy(false)} />
     </Scroll>
   );
 }

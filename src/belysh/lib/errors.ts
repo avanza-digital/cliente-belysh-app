@@ -14,6 +14,7 @@ export function traducir(msg?: string): string {
   if (m.includes('stylist_not_found')) return 'Esa estilista ya no está disponible. Elige otra, por favor.';
   if (m.includes('promo_wrong_day')) return 'Esta promoción solo es válida en su día señalado.';
   if (m.includes('invalid_slot') || m.includes('past_slot')) return 'Ese horario ya no es válido. Elige otro, por favor.';
+  if (m.includes('staff_account')) return 'Las cuentas del personal se gestionan desde el panel del salón.';
   if (m.includes('row-level security') || m.includes('permission')) return 'No tienes permiso para esta acción.';
   if (m.includes('jwt') || m.includes('expired') || m.includes('not authenticated')) return 'Tu sesión expiró. Vuelve a iniciar sesión.';
   if (m.includes('password')) return 'La contraseña debe tener al menos 6 caracteres.';
