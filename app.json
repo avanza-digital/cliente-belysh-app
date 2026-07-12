@@ -3,7 +3,9 @@
     "name": "Belysh",
     "slug": "belysh",
     "version": "1.0.0",
-    "runtimeVersion": { "policy": "appVersion" },
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "belysh",
@@ -25,9 +27,9 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "permissions": [
-        "android.permission.READ_CALENDAR",
-        "android.permission.WRITE_CALENDAR"
+      "allowBackup": false,
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW"
       ]
     },
     "web": {
@@ -67,6 +69,9 @@
         "projectId": "9bba99f4-ba85-4afc-83c0-a46d65c356ca"
       }
     },
-    "owner": "avancecorp"
+    "owner": "avancecorp",
+    "updates": {
+      "url": "https://u.expo.dev/9bba99f4-ba85-4afc-83c0-a46d65c356ca"
+    }
   }
 }
