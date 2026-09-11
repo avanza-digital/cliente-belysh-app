@@ -52,7 +52,11 @@ export default function Club() {
   const [redeeming, setRedeeming] = useState<string | null>(null);
 
   const holder = (profile?.full_name || 'Socia Belysh').toUpperCase();
-  const since = profile?.member_since || '2026';
+  // Solo el año: member_since llega como fecha/timestamp del servidor y la tarjeta
+  // no debe mostrarlo en crudo (mismo criterio que "Miembro desde" en Perfil).
+  // Se lee del texto ISO, sin `new Date`: una fecha suelta ('2026-01-01') se
+  // interpretaría como medianoche UTC y en Lima (UTC−5) daría el año anterior.
+  const since = /^(\d{4})/.exec(profile?.member_since ?? '')?.[1] ?? '2026';
 
   const onRedeem = (w: any) => {
     if (points < w.cost || redeeming) return;
